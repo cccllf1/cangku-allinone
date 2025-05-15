@@ -1,0 +1,17 @@
+FROM node:18
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+
+# 添加测试数据文件
+COPY products.json /products.json
+COPY locations.json /locations.json
+
+# 构建时自动导入测试数据
+RUN apt-get update && apt-get install -y mongo-tools \
+  && mongoimport --host mongo --port 8612 -d cangku-guanli -c products --file /products.json --jsonArray \
+  && mongoimport --host mongo --port 8612 -d cangku-guanli -c locations --file /locations.json --jsonArray || true
+
+EXPOSE 8611
+CMD ["npm", "start"]

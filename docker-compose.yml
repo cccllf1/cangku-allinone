@@ -1,0 +1,39 @@
+version: '3.8'
+services:
+  mongo:
+    image: mongo:5
+    container_name: cangku-mongo
+    restart: always
+    ports:
+      - "8612:8612"
+    command: ["mongod", "--port", "8612"]
+    volumes:
+      - ./mongo-data:/data/db
+
+  backend:
+    build: ./server
+    container_name: cangku-backend
+    restart: always
+    ports:
+      - "8611:8611"
+    env_file:
+      - ./server/.env
+    depends_on:
+      - mongo
+    volumes:
+      - ./server:/app
+    environment:
+      - MONGODB_URI=mongodb://mongo:8612/cangku-guanli
+      - PORT=8611
+
+  frontend:
+    build: ./cangku-guanli
+    container_name: cangku-frontend
+    restart: always
+    ports:
+      - "8610:80"
+    depends_on:
+      - backend
+#    volumes:
+#      - ./cangku-guanli:/app
+#      - ./cangku-guanli/build:/usr/share/nginx/html
