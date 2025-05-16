@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_URL = (process.env.REACT_APP_API_URL || 'http://192.168.11.252:8611') + '/api';
+// 使用相对路径，而不是硬编码的URL
+const API_URL = '/api';
 
 // 创建 axios 实例
 const api = axios.create({
@@ -35,6 +36,12 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// 检查用户是否已经登录
+export const checkAuthStatus = () => {
+  const token = localStorage.getItem('token');
+  return !!token; // 如果有token则返回true，否则返回false
+};
 
 export const login = async (username, password) => {
   const response = await api.post('/auth/login', { username, password });

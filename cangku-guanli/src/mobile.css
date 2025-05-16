@@ -1,0 +1,93 @@
+/* 移动设备适配样式 */
+/* 针对iData 95W PDA设备优化 */
+
+/* 全局样式调整 */
+html {
+  touch-action: manipulation;  /* 优化触摸操作 */
+  -webkit-tap-highlight-color: transparent; /* 移除触摸高亮 */
+  -webkit-text-size-adjust: none; /* 禁止iOS自动调整文字大小 */
+}
+
+body {
+  -webkit-text-size-adjust: 100%; /* 防止iOS自动调整文字大小 */
+}
+
+/* 防止输入框触发缩放 */
+input, textarea, select {
+  font-size: 16px !important; /* 保持至少16px可以防止iOS缩放 */
+  max-height: 100%;
+}
+
+/* 小屏幕设备的响应式调整 */
+@media (max-width: 768px) {
+  /* 表格样式优化 */
+  .ant-table {
+    font-size: 14px;
+  }
+  
+  .ant-table-cell {
+    padding: 8px 4px !important;
+  }
+  
+  /* 按钮优化 */
+  .ant-btn {
+    height: 36px;
+    padding: 4px 15px;
+    font-size: 16px;
+  }
+  
+  /* 输入框优化 */
+  .ant-input, .ant-select {
+    height: 36px;
+    font-size: 16px; /* 更大的字体便于触摸 */
+    transform: scale(1.0); /* 防止缩放 */
+    transform-origin: left top;
+  }
+  
+  /* 导航菜单优化 */
+  .ant-menu-item {
+    height: 48px;
+    line-height: 48px;
+  }
+  
+  /* 页面容器内边距减少 */
+  .page-container {
+    padding: 8px !important;
+  }
+  
+  /* 图片尺寸增大，便于查看 */
+  .ant-image {
+    width: 60px !important;
+  }
+  
+  /* 操作栏固定在底部 */
+  .action-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 8px;
+    background-color: white;
+    box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+    z-index: 100;
+  }
+  
+  /* 扫码输入专用样式 */
+  .scan-input {
+    height: 48px;
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+  
+  /* 提高表单间距 */
+  .ant-form-item {
+    margin-bottom: 16px;
+  }
+}
+
+/* 横屏适配优化 */
+@media (max-width: 768px) and (orientation: landscape) {
+  .page-container {
+    padding: 4px !important;
+  }
+} 

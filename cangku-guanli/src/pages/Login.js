@@ -1,21 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { message } from 'antd';
+import { message, Button, Input, Form } from 'antd';
+import { UserOutlined, LockOutlined, LoginOutlined } from '@ant-design/icons';
 import { login } from '../api/auth';
 
 const Login = () => {
-  const [username, setUsername] = useState('wms');
-  const [password, setPassword] = useState('');
+  const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [isMobile, setIsMobile] = useState(false);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  // 检测移动设备
+  useEffect(() => {
+    const checkDevice = () => {
+      const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+        window.innerWidth < 768;
+      setIsMobile(mobile);
+    };
+    
+    checkDevice();
+    window.addEventListener('resize', checkDevice);
+    
+    return () => {
+      window.removeEventListener('resize', checkDevice);
+    };
+  }, []);
+
+  const handleLogin = async (values) => {
     setLoading(true);
     try {
-      const response = await login(username, password);
+      const response = await login(values.username, values.password);
       console.log('Login response:', response);
-      localStorage.setItem('token', response.access_token);
+      localStorage.setItem('token', response.token);
       localStorage.setItem('is_admin', response.is_admin);
       message.success('登录成功');
       navigate('/inventory');
@@ -26,6 +42,11 @@ const Login = () => {
     }
   };
 
+  // 默认设置用户名为wms
+  useEffect(() => {
+    form.setFieldsValue({ username: 'wms' });
+  }, [form]);
+
   return (
     <div style={{ 
       display: 'flex', 
@@ -35,60 +56,65 @@ const Login = () => {
       background: '#f0f2f5'
     }}>
       <div style={{
-        padding: '40px',
+        padding: isMobile ? '24px' : '40px',
         background: 'white',
         borderRadius: '8px',
         boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        width: '400px'
+        width: isMobile ? '90%' : '400px',
+        maxWidth: '400px'
       }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '24px' }}>仓库管理系统</h2>
-        <form onSubmit={handleLogin}>
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', marginBottom: '8px' }}>用户名</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px',
-                borderRadius: '4px',
-                border: '1px solid #d9d9d9'
-              }}
-              required
-            />
-          </div>
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', marginBottom: '8px' }}>密码</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px',
-                borderRadius: '4px',
-                border: '1px solid #d9d9d9'
-              }}
-              required
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%',
-              padding: '8px',
-              background: loading ? '#ccc' : '#1890ff',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: loading ? 'not-allowed' : 'pointer'
-            }}
+        <h2 style={{ 
+          textAlign: 'center', 
+          marginBottom: '24px',
+          fontSize: isMobile ? '24px' : '28px' 
+        }}>
+          仓库管理系统
+        </h2>
+        
+        <Form
+          form={form}
+          onFinish={handleLogin}
+          initialValues={{ username: 'wms' }}
+          size={isMobile ? 'large' : 'middle'}
+        >
+          <Form.Item
+            name="username"
+            rules={[{ required: true, message: '请输入用户名' }]}
           >
-            {loading ? '登录中...' : '登录'}
-          </button>
-        </form>
+            <Input 
+              prefix={<UserOutlined />} 
+              placeholder="用户名" 
+              style={{ height: isMobile ? '44px' : '40px' }}
+            />
+          </Form.Item>
+          
+          <Form.Item
+            name="password"
+            rules={[{ required: true, message: '请输入密码' }]}
+          >
+            <Input.Password 
+              prefix={<LockOutlined />} 
+              placeholder="密码"
+              style={{ height: isMobile ? '44px' : '40px' }}
+            />
+          </Form.Item>
+          
+          <Form.Item>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={loading}
+              icon={<LoginOutlined />}
+              style={{ 
+                width: '100%',
+                height: isMobile ? '48px' : '40px',
+                fontSize: isMobile ? '18px' : '16px'
+              }}
+            >
+              登录
+            </Button>
+          </Form.Item>
+        </Form>
       </div>
     </div>
   );

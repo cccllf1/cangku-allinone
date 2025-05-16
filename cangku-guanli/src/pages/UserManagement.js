@@ -17,8 +17,10 @@ const UserManagement = () => {
     try {
       setLoading(true);
       const response = await getUsers();
-      setUsers(response.data);
+      console.log('获取用户列表响应:', response.data);
+      setUsers(response.data.users || []);
     } catch (error) {
+      console.error('获取用户列表失败:', error);
       message.error('获取用户列表失败');
     } finally {
       setLoading(false);
@@ -69,7 +71,7 @@ const UserManagement = () => {
   const handleEditUserOk = async () => {
     try {
       const values = await editForm.validateFields();
-      await editUser(editingUser.id, values);
+      await editUser(editingUser._id, values);
       message.success('编辑用户成功');
       setEditModalVisible(false);
       setEditingUser(null);
@@ -95,7 +97,7 @@ const UserManagement = () => {
           </Button>
           <Popconfirm
             title="确定要删除此用户吗？"
-            onConfirm={() => handleDeleteUser(record.id)}
+            onConfirm={() => handleDeleteUser(record._id)}
           >
             <Button type="text" danger icon={<DeleteOutlined />}>
               删除
@@ -103,7 +105,7 @@ const UserManagement = () => {
           </Popconfirm>
           <Popconfirm
             title="确定要重置此用户的密码吗？"
-            onConfirm={() => handleResetPassword(record.id)}
+            onConfirm={() => handleResetPassword(record._id)}
           >
             <Button type="text" icon={<KeyOutlined />}>
               重置密码
@@ -131,7 +133,7 @@ const UserManagement = () => {
         <Table
           columns={columns}
           dataSource={users}
-          rowKey="id"
+          rowKey="_id"
           loading={loading}
         />
 

@@ -22,9 +22,15 @@ services:
       - mongo
     volumes:
       - ./server:/app
+      - ./server/uploads:/app/uploads
     environment:
       - MONGODB_URI=mongodb://mongo:8612/cangku-guanli
       - PORT=8611
+      - NODE_ENV=production
+    command: >
+      bash -c "mkdir -p /app/uploads && 
+      chmod -R 777 /app/uploads && 
+      npm start"
 
   frontend:
     build: ./cangku-guanli

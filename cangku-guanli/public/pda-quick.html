@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>仓库管理系统 - PDA快速操作</title>
+  <style>
+    /* 针对PDA设备的基本样式 */
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 16px;
+      margin: 0;
+      padding: 0;
+      background-color: #f5f5f5;
+      -webkit-text-size-adjust: 100%;
+    }
+    
+    .container {
+      padding: 10px;
+      max-width: 100%;
+    }
+    
+    .header {
+      background-color: #1890ff;
+      color: white;
+      padding: 10px;
+      text-align: center;
+      font-size: 18px;
+      font-weight: bold;
+    }
+    
+    .form-group {
+      margin-bottom: 15px;
+    }
+    
+    label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    
+    input, select {
+      width: 100%;
+      height: 42px;
+      padding: 8px;
+      border: 1px solid #d9d9d9;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    
+    .button-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    
+    .btn {
+      flex: 1 0 calc(50% - 10px);
+      padding: 15px 0;
+      font-size: 18px;
+      font-weight: bold;
+      text-align: center;
+      border: none;
+      border-radius: 4px;
+      color: white;
+      cursor: pointer;
+    }
+    
+    .btn-primary {
+      background-color: #1890ff;
+    }
+    
+    .btn-danger {
+      background-color: #ff4d4f;
+    }
+    
+    .btn-success {
+      background-color: #52c41a;
+    }
+    
+    .btn-warning {
+      background-color: #faad14;
+    }
+    
+    .result-area {
+      margin-top: 20px;
+      border: 1px solid #d9d9d9;
+      padding: 10px;
+      border-radius: 4px;
+      background-color: white;
+      min-height: 100px;
+    }
+
+    /* 添加大一些的按钮样式，适合PDA设备触摸 */
+    .quick-btn {
+      display: block;
+      width: 100%;
+      margin-bottom: 15px;
+      padding: 20px 0;
+      font-size: 24px;
+      font-weight: bold;
+      text-align: center;
+      border: none;
+      border-radius: 4px;
+      color: white;
+      background-color: #1890ff;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">仓库管理系统 - PDA快速操作</div>
+  
+  <div class="container">
+    <button class="quick-btn" onclick="window.location.href='/inbound'">入库操作</button>
+    <button class="quick-btn" onclick="window.location.href='/outbound'">出库操作</button>
+    <button class="quick-btn" onclick="window.location.href='/inventory'">库存查询</button>
+    
+    <div class="form-group">
+      <label for="code">快速扫码:</label>
+      <input 
+        type="text" 
+        id="code" 
+        placeholder="扫描条码..." 
+        autofocus
+        onkeypress="if(event.keyCode==13) handleScan()"
+      >
+    </div>
+    
+    <div class="button-group">
+      <button class="btn btn-primary" onclick="handleScan()">确认扫码</button>
+      <button class="btn btn-danger" onclick="clearResult()">清除结果</button>
+    </div>
+    
+    <div class="result-area" id="result">
+      等待扫码...
+    </div>
+  </div>
+  
+  <script>
+    // 简单的扫码处理函数
+    function handleScan() {
+      const codeInput = document.getElementById('code');
+      const resultArea = document.getElementById('result');
+      
+      const code = codeInput.value.trim();
+      if (!code) {
+        resultArea.innerHTML = '<span style="color:red">请先扫描条码</span>';
+        return;
+      }
+      
+      // 显示扫描结果
+      resultArea.innerHTML = `
+        <div style="margin-bottom: 5px;"><b>条码:</b> ${code}</div>
+        <div style="color:green">扫描成功!</div>
+        <div style="margin-top: 10px">请选择要执行的操作按钮</div>
+      `;
+      
+      // 在结果区域添加操作按钮
+      resultArea.innerHTML += `
+        <div class="button-group" style="margin-top: 15px">
+          <button class="btn btn-success" onclick="redirectWithCode('/inbound', '${code}')">入库</button>
+          <button class="btn btn-warning" onclick="redirectWithCode('/outbound', '${code}')">出库</button>
+        </div>
+      `;
+      
+      // 清空输入框并聚焦，准备下一次扫描
+      codeInput.value = '';
+      codeInput.focus();
+    }
+    
+    // 跳转到相应页面并传递条码参数
+    function redirectWithCode(page, code) {
+      // 使用localStorage存储扫描的条码，以便页面间传递
+      localStorage.setItem('scanned_code', code);
+      window.location.href = `${page}?code=${encodeURIComponent(code)}`;
+    }
+    
+    // 清除结果区域
+    function clearResult() {
+      document.getElementById('result').innerHTML = '等待扫码...';
+      document.getElementById('code').value = '';
+      document.getElementById('code').focus();
+    }
+    
+    // 页面加载完成后自动聚焦到输入框
+    window.onload = function() {
+      document.getElementById('code').focus();
+    };
+  </script>
+</body>
+</html> 

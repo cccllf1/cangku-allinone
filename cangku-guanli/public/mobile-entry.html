@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>仓库管理系统 - 移动版</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5;
+            color: #333;
+            -webkit-text-size-adjust: 100%;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .entry-box {
+            width: 100%;
+            max-width: 360px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 24px;
+            margin: 10px;
+        }
+        h1 {
+            text-align: center;
+            font-size: 24px;
+            margin-bottom: 24px;
+            color: #1890ff;
+        }
+        .button {
+            display: block;
+            width: 100%;
+            height: 48px;
+            background: #1890ff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 18px;
+            cursor: pointer;
+            margin-bottom: 16px;
+            text-align: center;
+            line-height: 48px;
+            text-decoration: none;
+        }
+        .lite-button {
+            background: #52c41a;
+        }
+        .note {
+            font-size: 14px;
+            color: #666;
+            text-align: center;
+            margin-top: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="entry-box">
+            <h1>仓库管理系统</h1>
+            <p style="text-align: center; margin-bottom: 24px;">请选择适合您设备的版本</p>
+            
+            <a href="#" id="pdaLink" class="button lite-button">简易版 (PDA专用)</a>
+            <a href="#" id="standardLink" class="button">标准版</a>
+            
+            <div class="note">
+                <p>* 简易版针对各种浏览器优化，兼容性更好</p>
+                <p>* 标准版功能更完整，但需要现代浏览器支持</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // 预设访问令牌
+        localStorage.setItem('token', 'mobile-direct-access-token');
+        localStorage.setItem('is_admin', 'true');
+        localStorage.setItem('is_pda', 'true');
+        
+        // 简易版按钮点击处理
+        document.getElementById('pdaLink').addEventListener('click', function(e) {
+            e.preventDefault();
+            // 强制设置PDA访问令牌
+            localStorage.setItem('token', 'pda-direct-access-token');
+            localStorage.setItem('is_admin', 'true');
+            localStorage.setItem('is_pda', 'true');
+            
+            // 添加随机参数防止缓存问题
+            const cacheBuster = Date.now();
+            window.location.href = `/pda-direct.html?v=${cacheBuster}`;
+        });
+        
+        // 标准版按钮点击处理
+        document.getElementById('standardLink').addEventListener('click', function(e) {
+            e.preventDefault();
+            // 强制设置移动访问令牌
+            localStorage.setItem('token', 'mobile-direct-access-token');
+            localStorage.setItem('is_admin', 'true');
+            
+            // 跳转到首页(避免缓存问题)
+            window.location.href = `/mobile.html?v=${Date.now()}`;
+        });
+    })();
+    </script>
+</body>
+</html> 

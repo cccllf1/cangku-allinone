@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Table, Input, Button, Select, message, Popconfirm, Form, Modal, Image } from 'antd';
-import axios from 'axios';
+import api from '../api/auth';
 import Navbar from '../components/Navbar';
 
 const Inbound = () => {
@@ -17,10 +17,12 @@ const Inbound = () => {
   const [multiInput, setMultiInput] = useState('');
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewImage, setPreviewImage] = useState('');
+  const [inventory, setInventory] = useState({});
 
   useEffect(() => {
-    axios.get('/api/products/').then(res => setProducts(res.data));
-    axios.get('/api/locations/').then(res => setLocations(res.data));
+    // 获取产品列表和库位列表
+    api.get('/products').then(res => setProducts(res.data));
+    api.get('/locations').then(res => setLocations(res.data));
   }, []);
 
   useEffect(() => {
@@ -32,13 +34,10 @@ const Inbound = () => {
   useEffect(() => {
     const fetchLocations = async () => {
       try {
-        const response = await fetch('/api/locations/', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        if (response.ok) {
-          const data = await response.json();
+        // 使用api实例
+        const response = await api.get('/locations');
+        if (response.status === 200) {
+          const data = response.data;
           setLocations(data);
           setLocationOptions(data.map(loc => ({ value: loc.code, label: loc.code })));
         }
@@ -50,7 +49,7 @@ const Inbound = () => {
   }, []);
 
   useEffect(() => {
-    axios.get('/api/inventory/').then(res => {
+    api.get('/inventory').then(res => {
       const inventory = res.data;
       const locationQuantities = {};
       inventory.forEach(item => {
@@ -70,6 +69,23 @@ const Inbound = () => {
       setLocationOptions(sortedLocations.map(loc => ({ value: loc.code, label: loc.code })));
     });
   }, [locations]);
+
+  // 获取库存信息，用于计算在库数量
+  useEffect(() => {
+    api.get('/inventory').then(res => {
+      // 处理库存数据 - 注意检查response格式
+      const inventoryData = {};
+      if (Array.isArray(res.data)) {
+        res.data.forEach(item => {
+          inventoryData[item.product_id] = item.quantity;
+        });
+      }
+      setInventory(inventoryData);
+      setLoading(false);
+    }).catch(() => {
+      setLoading(false);
+    });
+  }, []);
 
   const handleInputChange = (e) => {
     setInputCode(e.target.value);
@@ -119,46 +135,125 @@ const Inbound = () => {
   };
 
   const handleQuantityChange = (value, key) => {
-    setTableData(tableData.map(item => item.key === key ? { ...item, quantity: value } : item));
+    // 允许临时存储空字符串，但在提交时仍需为有效值
+    const inputValue = value === '' ? '' : (!value || isNaN(value) || value < 1) ? 1 : parseInt(value);
+    
+    setTableData(tableData.map(item => 
+      item.key === key ? { ...item, quantity: inputValue } : item
+    ));
   };
 
   const handleConfirmInbound = async () => {
-    // 补全 id，字段名统一
-    const fixedTableData = tableData.map(item => {
-      const product = products.find(p => p.code === item.productCode || p.code === item.product_code);
-      const location = locations.find(l => l.code === item.location);
-      return {
-        ...item,
-        product_id: product ? product.id : null,
-        location_id: location ? location.id : null,
-      };
-    });
-    if (fixedTableData.length === 0) {
-      message.warning('请先添加商品');
-      return;
-    }
-    if (fixedTableData.some(item => !item.product_id || !item.location_id)) {
-      message.error('商品或库位未匹配到ID，请检查输入');
-      return;
-    }
     try {
-      for (const item of fixedTableData) {
-        await axios.post('/api/inbound/', {
-          product_id: Number(item.product_id),
-          location_id: Number(item.location_id),
-          quantity: item.quantity,
-          batch_number: '',
-          notes: ''
-        }, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
+      setLoading(true);
+      // 对每个商品进行处理，确保都有库位和有效数量
+      const updatedTableData = [...tableData].map(item => {
+        // 确保数量是有效值
+        const validQuantity = item.quantity === '' || isNaN(parseInt(item.quantity)) ? 1 : parseInt(item.quantity);
+        
+        // 确保有库位
+        const location = !item.location ? 'DEFAULT' : item.location;
+        
+        return {
+          ...item,
+          quantity: validQuantity,
+          location: location
+        };
+      });
+      
+      setTableData(updatedTableData);
+
+      // 如果有商品没有库位ID，可能是因为库位是新输入的，需要先创建
+      let needDefaultLocation = false;
+      for (const item of updatedTableData) {
+        if (!item.location_id && item.location) {
+          needDefaultLocation = true;
+        }
       }
-      message.success('入库成功');
-      setTableData([]);
-    } catch (e) {
-      message.error('入库失败');
+
+      // 创建默认库位
+      if (needDefaultLocation) {
+        try {
+          const defaultLocationRes = await api.post('/locations', 
+            { code: "DEFAULT", name: "默认库位" }
+          );
+          
+          console.log('创建默认库位成功:', defaultLocationRes.data);
+          
+          // 刷新库位列表
+          const locationsRes = await api.get('/locations');
+          setLocations(locationsRes.data);
+          
+          // 更新表格中的库位ID
+          const updatedTableData = [];
+          for (const item of updatedTableData) {
+            if (!item.location_id && item.location) {
+              // 找对应的库位
+              const loc = locationsRes.data.find(l => l.code === item.location);
+              if (loc) {
+                updatedTableData.push({ ...item, location_id: loc.id });
+                continue;
+              }
+              
+              // 如果还是找不到，可能需要为这个特定的库位创建一个新条目
+              try {
+                const newLocRes = await api.post('/locations', 
+                  { code: item.location, name: item.location }
+                );
+                updatedTableData.push({ ...item, location_id: newLocRes.data.id });
+              } catch (error) {
+                console.error('创建特定库位失败:', error);
+                // 失败时使用默认库位
+                const defaultLoc = locationsRes.data.find(l => l.code === "DEFAULT");
+                if (defaultLoc) {
+                  updatedTableData.push({ ...item, location: "DEFAULT", location_id: defaultLoc.id });
+                } else {
+                  updatedTableData.push(item);
+                }
+              }
+            } else {
+              updatedTableData.push(item);
+            }
+          }
+          setTableData(updatedTableData);
+        } catch (error) {
+          console.error('创建默认库位失败:', error);
+          message.error('创建默认库位失败，请手动选择库位');
+          setLoading(false);
+          return;
+        }
+      }
+
+      // 批量入库
+      const promises = updatedTableData.map(item => {
+        return new Promise((resolve) => {
+          api.post('/inbound', {
+            product_id: Number(item.product_id),
+            location_id: Number(item.location_id),
+            quantity: item.quantity
+          })
+            .then(() => resolve({ ok: true }))
+            .catch((error) => {
+              console.error('入库失败:', error);
+              resolve({ ok: false, error });
+            });
+        });
+      });
+      
+      const results = await Promise.all(promises);
+      const allSuccess = results.every(res => res.ok);
+      
+      if (allSuccess) {
+        message.success('批量入库成功');
+        setTableData([]);
+      } else {
+        message.error('部分商品入库失败');
+      }
+    } catch (error) {
+      console.error('批量入库失败:', error);
+      message.error('批量入库失败');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -180,34 +275,25 @@ const Inbound = () => {
     const code = e.target.value;
     if (code) {
       try {
-        const response = await fetch(`/api/products/${code}/`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
+        // 使用api实例
+        const response = await api.get(`/products/code/${code}`);
         
-        if (response.ok) {
-          const product = await response.json();
+        if (response.status === 200) {
+          const product = response.data;
           form.setFieldsValue({
             productName: product.name,
-            unit: product.unit
+            unit: product.unit || '件'
           });
         } else if (response.status === 404) {
-          const createResponse = await fetch('/api/products/', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify({
-              code: code,
-              name: code,
-              unit: '件'
-            })
+          // 使用api实例创建商品
+          const createResponse = await api.post('/products', {
+            code: code,
+            name: code,
+            unit: '件'
           });
           
-          if (createResponse.ok) {
-            const newProduct = await createResponse.json();
+          if (createResponse.status === 201) {
+            const newProduct = createResponse.data;
             form.setFieldsValue({
               productName: newProduct.name,
               unit: newProduct.unit
@@ -219,7 +305,28 @@ const Inbound = () => {
         }
       } catch (error) {
         console.error('获取或创建商品失败:', error);
-        message.error('获取或创建商品失败');
+        // 如果是404错误，尝试创建新商品
+        if (error.response?.status === 404) {
+          try {
+            const createResponse = await api.post('/products', {
+              code: code,
+              name: code,
+              unit: '件'
+            });
+            
+            const newProduct = createResponse.data;
+            form.setFieldsValue({
+              productName: newProduct.name,
+              unit: newProduct.unit
+            });
+            message.success('自动创建新商品成功');
+          } catch (createError) {
+            console.error('创建商品失败:', createError);
+            message.error('自动创建新商品失败');
+          }
+        } else {
+          message.error('获取商品失败');
+        }
       }
     }
   };
@@ -227,16 +334,43 @@ const Inbound = () => {
   const handleAddToTable = async () => {
     try {
       const values = await form.validateFields();
-      const newItem = {
-        key: Date.now(),
-        productCode: values.productCode,
-        productName: values.productName,
-        location: values.location,
-        quantity: values.quantity,
-        unit: values.unit
-      };
-      setTableData([...tableData, newItem]);
-      form.resetFields(['productCode', 'productName', 'quantity', 'unit']);
+      
+      // 如果单位为空，设置默认值为"件"
+      if (!values.unit || values.unit.trim() === '') {
+        values.unit = '件';
+      }
+      
+      // 检查表格中是否已存在相同商品编码的商品
+      const existingItemIndex = tableData.findIndex(item => item.productCode === values.productCode);
+      
+      if (existingItemIndex >= 0) {
+        // 如果已存在，只更新数量
+        const newTableData = [...tableData];
+        console.log(`商品编码[${values.productCode}]已存在，累加数量 +1`);
+        newTableData[existingItemIndex] = {
+          ...newTableData[existingItemIndex],
+          quantity: (newTableData[existingItemIndex].quantity || 0) + 1
+        };
+        setTableData(newTableData);
+      } else {
+        // 如果不存在，添加新行
+        const newItem = {
+          key: `${values.productCode}-${Date.now()}`,
+          productCode: values.productCode,
+          productName: values.productName,
+          location: values.location,
+          quantity: 1, // 默认数量为1
+          unit: values.unit
+        };
+        setTableData([...tableData, newItem]);
+      }
+      
+      // 重置表单，保留location字段的值
+      const location = form.getFieldValue('location');
+      form.resetFields(['productCode', 'productName', 'unit']);
+      if (location) {
+        form.setFieldsValue({ location });
+      }
     } catch (error) {
       console.error('添加失败:', error);
     }
@@ -250,29 +384,125 @@ const Inbound = () => {
 
     try {
       setLoading(true);
-      const promises = tableData.map(item => 
-        fetch('/api/inbound/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          },
-          body: JSON.stringify({
-            product_code: item.productCode,
-            location_code: item.location,
-            quantity: item.quantity
-          })
-        })
-      );
-
-      const results = await Promise.all(promises);
-      const allSuccess = results.every(res => res.ok);
       
-      if (allSuccess) {
-        message.success('批量入库成功');
-        setTableData([]);
-      } else {
-        message.error('部分商品入库失败');
+      // 对每个商品进行处理，确保都有库位和有效数量
+      const updatedTableData = [...tableData].map(item => {
+        // 确保数量是有效值
+        const validQuantity = item.quantity === '' || isNaN(parseInt(item.quantity)) ? 1 : parseInt(item.quantity);
+        
+        // 确保有库位
+        const location = !item.location ? 'DEFAULT' : item.location;
+        
+        return {
+          ...item,
+          quantity: validQuantity,
+          location: location
+        };
+      });
+      
+      setTableData(updatedTableData);
+
+      // 确保有默认库位
+      try {
+        // 查找或创建默认库位
+        let defaultLocation;
+        try {
+          const response = await api.get('/locations/code/DEFAULT');
+          defaultLocation = response.data;
+        } catch (error) {
+          if (error.response?.status === 404) {
+            // 创建默认库位
+            const res = await api.post('/locations', { 
+              code: 'DEFAULT', 
+              name: '默认库位' 
+            });
+            defaultLocation = res.data;
+            message.success('自动创建默认库位成功');
+          } else {
+            throw error;
+          }
+        }
+        
+        // 处理每个商品的库位
+        for (let i = 0; i < updatedTableData.length; i++) {
+          let item = updatedTableData[i];
+          if (!item.location_id && item.location) {
+            // 尝试查找对应库位
+            try {
+              const res = await api.get(`/locations/code/${item.location}`);
+              updatedTableData[i] = {
+                ...item,
+                location_id: res.data.id
+              };
+            } catch (error) {
+              if (error.response?.status === 404) {
+                // 创建新库位
+                try {
+                  const newLocRes = await api.post('/locations', {
+                    code: item.location,
+                    name: item.location
+                  });
+                  updatedTableData[i] = {
+                    ...item,
+                    location_id: newLocRes.data.id
+                  };
+                  message.success(`自动创建库位 "${item.location}" 成功`);
+                } catch (createError) {
+                  console.error('创建库位失败:', createError);
+                  // 使用默认库位
+                  updatedTableData[i] = {
+                    ...item,
+                    location: 'DEFAULT',
+                    location_id: defaultLocation.id
+                  };
+                  message.warning(`无法创建库位 "${item.location}", 使用默认库位`);
+                }
+              } else {
+                console.error('获取库位失败:', error);
+                // 使用默认库位
+                updatedTableData[i] = {
+                  ...item,
+                  location: 'DEFAULT',
+                  location_id: defaultLocation.id
+                };
+              }
+            }
+          }
+        }
+      
+        // 更新表格数据
+        setTableData(updatedTableData);
+      
+        // 执行入库操作
+        const promises = updatedTableData.map(item => 
+          new Promise((resolve) => {
+            api.post('/inbound', {
+              product_code: item.productCode,
+              product_id: item.product_id,
+              location_code: item.location,
+              location_id: item.location_id,
+              quantity: item.quantity
+            })
+            .then(() => resolve({ ok: true }))
+            .catch((error) => {
+              console.error('入库失败:', error);
+              resolve({ ok: false, error });
+            });
+          })
+        );
+
+        const results = await Promise.all(promises);
+        const allSuccess = results.every(res => res.ok);
+        
+        if (allSuccess) {
+          message.success('批量入库成功');
+          setTableData([]);
+        } else {
+          message.error('部分商品入库失败');
+        }
+      } catch (error) {
+        console.error('处理库位失败:', error);
+        message.error('处理库位失败: ' + (error.response?.data?.message || error.message));
       }
     } catch (error) {
       console.error('批量入库失败:', error);
@@ -289,32 +519,84 @@ const Inbound = () => {
   const handleBatchAdd = async () => {
     const codes = multiInput.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
     if (codes.length === 0) return;
+    
+    // 计算每个商品码出现的次数
+    const codeCount = {};
+    codes.forEach(code => {
+      codeCount[code] = (codeCount[code] || 0) + 1;
+    });
+    
     let newTableData = [...tableData];
-    for (const code of codes) {
-      // 查商品信息
+    
+    for (const [code, count] of Object.entries(codeCount)) {
+      // 先检查表格中是否已存在该商品
+      const existingItemIndex = newTableData.findIndex(item => item.productCode === code);
+      
+      if (existingItemIndex >= 0) {
+        // 如果已存在，只更新数量
+        console.log(`商品编码[${code}]已存在，累加数量 +${count}`);
+        newTableData[existingItemIndex] = {
+          ...newTableData[existingItemIndex],
+          quantity: (newTableData[existingItemIndex].quantity || 0) + count
+        };
+        continue;
+      }
+      
+      // 如果不存在，查商品信息并创建新行
       let productName = code;
-      let unit = '件';
+      let unit = '件'; // 默认单位为"件"
       let productId = null;
+      let imageUrl = '';
       try {
-        const response = await axios.get(`/api/products/code/${code}`);
+        // 使用api实例发送GET请求
+        const response = await api.get(`/products/code/${code}`);
         if (response.status === 200) {
           const product = response.data;
           productName = product.name;
-          unit = product.unit;
+          // 如果获取到的单位为空，也使用默认值"件"
+          unit = product.unit && product.unit.trim() !== '' ? product.unit : '件';
           productId = product._id || product.id;
+          imageUrl = product.image_path || product.image || '';
         }
       } catch (error) {
-        // 查不到就用默认
+        console.log(`商品编码[${code}]不存在，自动创建...`);
+        // 如果是404错误，表示商品不存在，自动创建
+        if (error.response?.status === 404) {
+          try {
+            const createResponse = await api.post('/products', {
+              code: code,
+              name: code,
+              unit: '件'
+            });
+            
+            const newProduct = createResponse.data;
+            productName = newProduct.name;
+            unit = newProduct.unit;
+            productId = newProduct.id || newProduct._id;
+            imageUrl = newProduct.image_path || newProduct.image || '';
+            message.success(`自动创建商品 "${code}" 成功`);
+          } catch (createError) {
+            console.error('创建商品失败:', createError);
+            message.error(`自动创建商品 "${code}" 失败: ${createError.response?.data?.message || createError.message}`);
+            // 仍然添加到表格，使用默认值
+          }
+        } else {
+          message.error(`获取商品 "${code}" 失败: ${error.response?.data?.message || error.message}`);
+        }
       }
+      
+      // 添加新行，数量为该商品码的出现次数
       newTableData.push({
         key: `${code}-${Date.now()}-${Math.random()}`,
         productCode: code,
         productName,
         unit,
-        quantity: 1,
+        quantity: count, // 使用计数作为数量
         product_id: productId,
+        image: imageUrl,
       });
     }
+    
     setTableData(newTableData);
     setMultiInput('');
   };
@@ -324,16 +606,15 @@ const Inbound = () => {
     // 如果找不到，自动创建库位
     if (!loc && value) {
       try {
-        const res = await axios.post('/api/locations/', { code: value, name: value }, {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        });
+        // 使用api实例发送POST请求创建库位
+        const res = await api.post('/locations', { code: value, name: value });
         loc = res.data;
-        // 刷新 locations 列表
-        const locRes = await axios.get('/api/locations/', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        });
+        // 刷新 locations 列表，也使用api实例
+        const locRes = await api.get('/locations');
         setLocations(locRes.data);
       } catch (e) {
+        console.error('创建库位失败:', e);
+        message.error('创建库位失败:' + (e.response?.data?.message || e.message));
         // 创建失败，location_id 依然为 null
       }
     }
@@ -350,8 +631,25 @@ const Inbound = () => {
   };
 
   const handlePreview = (imgUrl) => {
+    console.log('预览图片:', imgUrl);
+    
+    if (!imgUrl) {
+      message.error('无法预览图片：URL为空');
+      return;
+    }
+    
+    // 设置预览图片URL
     setPreviewImage(imgUrl);
     setPreviewVisible(true);
+    
+    // 测试图片是否可加载
+    const img = new Image();
+    img.onload = () => console.log('图片加载成功:', imgUrl);
+    img.onerror = () => {
+      console.error('图片加载失败:', imgUrl);
+      message.warning('图片可能无法正确加载');
+    };
+    img.src = imgUrl;
   };
 
   const columns = [
@@ -359,15 +657,35 @@ const Inbound = () => {
       title: '图片',
       dataIndex: 'image',
       key: 'image',
-      render: (img, record) => img ? (
-        <Image
-          width={48}
-          src={img}
-          style={{ cursor: 'pointer' }}
-          preview={false}
-          onClick={() => handlePreview(img)}
-        />
-      ) : <span style={{ color: '#aaa' }}>无图</span>
+      render: (img, record) => {
+        console.log('渲染入库图片信息:', record);
+        // 从record中获取所有可能的图片相关字段
+        const imageUrl = img || record.image_path || record.imagePath || record.image_url || '';
+        
+        // 将URL转换为完整路径
+        let fullImageUrl = imageUrl;
+        if (imageUrl && !imageUrl.startsWith('http')) {
+          const baseUrl = window.location.protocol + '//' + window.location.host;
+          fullImageUrl = imageUrl.startsWith('/') ? 
+            baseUrl + imageUrl : 
+            baseUrl + '/' + imageUrl;
+        }
+        
+        console.log('处理后的图片URL:', fullImageUrl);
+        
+        return imageUrl ? (
+          <Image
+            width={48}
+            src={fullImageUrl}
+            style={{ cursor: 'pointer' }}
+            preview={{
+              src: fullImageUrl,
+              mask: '点击预览'
+            }}
+            fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+          />
+        ) : <span style={{ color: '#aaa' }}>无图</span>
+      }
     },
     { title: '商品编码', dataIndex: 'productCode', key: 'productCode' },
     { title: '商品名称', dataIndex: 'productName', key: 'productName' },
@@ -376,9 +694,19 @@ const Inbound = () => {
       <Input
         type="number"
         min={1}
-        value={record.quantity}
         style={{ width: 60 }}
-        onChange={e => handleQuantityChange(Number(e.target.value), record.key)}
+        value={record.quantity}
+        onChange={e => {
+          // 直接传递输入值给handleQuantityChange，可以包括空字符串
+          handleQuantityChange(e.target.value, record.key);
+        }}
+        onBlur={e => {
+          // 失去焦点时，如果为空或非法值，设为1
+          const val = e.target.value;
+          if (val === '' || isNaN(parseInt(val)) || parseInt(val) < 1) {
+            handleQuantityChange(1, record.key);
+          }
+        }}
       />
     ) },
     { title: '库位', dataIndex: 'location', key: 'location', render: (text, record) => (
@@ -424,12 +752,6 @@ const Inbound = () => {
               onChange={e => setLocationInputValue(e.target.value)}
             />
           </Form.Item>
-          <Form.Item label="数量" name="quantity"> 
-            <Input type="number" min={1} placeholder="请输入数量（可为空，默认为1）" />
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit">确认入库</Button>
-          </Form.Item>
         </Form>
         <Table
           columns={columns}
@@ -437,7 +759,7 @@ const Inbound = () => {
           pagination={false}
           style={{ marginBottom: 16 }}
         />
-        <Button type="primary" block onClick={() => { console.log('按钮被点击'); handleConfirmInbound(); }}>确认入库</Button>
+        <Button type="primary" block onClick={() => { console.log('按钮被点击'); handleBatchConfirm(); }}>确认入库</Button>
       </div>
       <Modal
         open={previewVisible}
@@ -445,7 +767,16 @@ const Inbound = () => {
         onCancel={() => setPreviewVisible(false)}
         width={600}
       >
-        <Image src={previewImage} style={{ width: '100%' }} />
+        <Image 
+          src={previewImage} 
+          style={{ width: '100%' }} 
+          preview={{ 
+            src: previewImage,
+            mask: false,
+            toolbarRender: () => null
+          }}
+          fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        />
       </Modal>
     </div>
   );

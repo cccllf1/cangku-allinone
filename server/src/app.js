@@ -3,6 +3,11 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const authRoutes = require('./routes/auth');
+const productsRoutes = require('./routes/products');
+const locationsRoutes = require('./routes/locations');
+const inventoryRoutes = require('./routes/inventory');
+const inboundRoutes = require('./routes/inbound');
+const outboundRoutes = require('./routes/outbound');
 
 dotenv.config();
 
@@ -12,6 +17,11 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
+app.use('/api/products', productsRoutes);
+app.use('/api/locations', locationsRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/inbound', inboundRoutes);
+app.use('/api/outbound', outboundRoutes);
 
 mongoose.connect('mongodb://192.168.11.252:27017/cangku-guanli', {
   useNewUrlParser: true,
