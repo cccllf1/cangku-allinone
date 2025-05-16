@@ -15,9 +15,12 @@ dist/
 
 # 运行时数据
 mongo-data/
+mongo-data
 *.log
 backend.log
 logs/
+server/uploads/*
+!server/uploads/.gitkeep
 
 # 系统文件
 .DS_Store
@@ -31,4 +34,20 @@ logs/
 .idea/
 .vscode/
 *.swp
-*.swo 
+*.swo
+
+# 大型文件
+*.mp4
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.dmg
+
+# 大型文件
+*.mp4
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.dmg 
