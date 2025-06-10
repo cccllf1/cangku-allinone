@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Table, Button, Input, List, Card, Space, Badge, Tag, Modal, InputNumber, message, Collapse } from 'antd';
+import { Table, Button, Input, List, Card, Space, Badge, Tag, Modal, InputNumber, message, Collapse, Checkbox, Select } from 'antd';
 import { ScanOutlined, SearchOutlined, SaveOutlined, EditOutlined, LogoutOutlined, PlusOutlined, MinusOutlined, CaretRightOutlined } from '@ant-design/icons';
 import api from '../api/auth';
 import { useNavigate } from 'react-router-dom';
@@ -47,6 +47,14 @@ const MobileInventory = () => {
   const [currentActionSku, setCurrentActionSku] = useState('');
   const [currentActionLocation, setCurrentActionLocation] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null); // 用于跟踪选中的库位
+  const [currentSortField, setCurrentSortField] = useState(''); // 当前排序字段
+  const [currentSortOrder, setCurrentSortOrder] = useState('asc'); // 当前排序方向
+  const [sortedItems, setSortedItems] = useState([]); // 排序后的数据
+  const [restockVisible, setRestockVisible] = useState(false); // 断码补货Modal显示状态
+  const [selectedRestockSkus, setSelectedRestockSkus] = useState([]); // 选中的需要补货的SKU
+  const [restockLocation, setRestockLocation] = useState(''); // 补货目标库位
+  const [restockQuantities, setRestockQuantities] = useState({}); // 每个SKU的补货数量
+  const [locationOptions, setLocationOptions] = useState([]); // 库位选项
   const scrollRef = useRef(null);
   const navigate = useNavigate();
 
@@ -65,7 +73,26 @@ const MobileInventory = () => {
   // 加载库存数据
   useEffect(() => {
     loadInventory();
+    loadLocationOptions();
   }, []);
+
+  // 加载库位选项
+  const loadLocationOptions = async () => {
+    try {
+      const response = await api.get('/locations/');
+      const locations = response.data || [];
+      const options = [
+        { value: '无货位', label: '无货位' },
+        ...locations.map(loc => ({
+          value: loc.code,
+          label: loc.code + (loc.name ? ` (${loc.name})` : '')
+        }))
+      ];
+      setLocationOptions(options);
+    } catch (error) {
+      console.error('获取库位选项失败:', error);
+    }
+  };
 
   const loadInventory = async () => {
     try {
@@ -800,6 +827,216 @@ const MobileInventory = () => {
     }
   };
 
+  // 处理排序
+  const handleSort = (field) => {
+    let newOrder = 'asc';
+    
+    // 如果点击的是当前排序字段，切换排序方向
+    if (currentSortField === field) {
+      newOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+    }
+    
+    setCurrentSortField(field);
+    setCurrentSortOrder(newOrder);
+    
+    // 对filteredData进行排序
+    const sorted = [...filteredData].sort((a, b) => {
+      let aValue, bValue;
+      
+      switch(field) {
+        case 'productCode':
+          aValue = a.productCode || '';
+          bValue = b.productCode || '';
+          break;
+        case 'skuCount':
+          aValue = a.skuList ? a.skuList.length : 0;
+          bValue = b.skuList ? b.skuList.length : 0;
+          break;
+        case 'locationCount':
+          aValue = a.locations ? a.locations.length : 0;
+          bValue = b.locations ? b.locations.length : 0;
+          break;
+        case 'quantity':
+          aValue = a.quantity || 0;
+          bValue = b.quantity || 0;
+          break;
+        default:
+          return 0;
+      }
+      
+      // 字符串排序
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        const result = aValue.localeCompare(bValue);
+        return newOrder === 'asc' ? result : -result;
+      }
+      
+      // 数字排序
+      const result = aValue - bValue;
+      return newOrder === 'asc' ? result : -result;
+    });
+    
+    setSortedItems(sorted);
+  };
+
+  // 获取排序图标
+  const getSortIcon = (field) => {
+    if (currentSortField !== field) {
+      return <span style={{ opacity: 0.3 }}>↕</span>;
+    }
+    return currentSortOrder === 'asc' ? '↑' : '↓';
+  };
+
+  // 显示断码补货Modal
+  const showRestockModal = () => {
+    if (!currentProduct || !currentProduct.skuList) return;
+    
+    // 重置状态
+    setSelectedRestockSkus([]);
+    setRestockQuantities({});
+    setRestockLocation('无货位');
+    setRestockVisible(true);
+  };
+
+  // 获取库存为0的SKU
+  const getZeroStockSkus = () => {
+    if (!currentProduct) return [];
+    
+    let zeroStockSkus = [];
+    
+    // 方法1: 从当前skuList中获取库存为0的SKU
+    if (currentProduct.skuList) {
+      zeroStockSkus = currentProduct.skuList.filter(sku => (sku.totalQuantity || 0) === 0);
+    }
+    
+    // 方法2: 通过分析颜色分组来识别缺失的SKU
+    // 获取所有颜色和尺码的组合，找出缺失的
+    if (currentProduct.skuList && currentProduct.skuList.length > 0) {
+      const colorGroups = groupSkusByColor(currentProduct.skuList);
+      
+      // 获取所有出现过的尺码
+      const allSizes = new Set();
+      Object.values(colorGroups).forEach(colorSkus => {
+        colorSkus.forEach(sku => {
+          const { size } = parseSkuCode(sku.code);
+          if (size) allSizes.add(size);
+        });
+      });
+      
+      // 检查每个颜色是否缺少某些尺码
+      Object.entries(colorGroups).forEach(([color, colorSkus]) => {
+        const existingSizes = new Set(colorSkus.map(sku => {
+          const { size } = parseSkuCode(sku.code);
+          return size;
+        }));
+        
+        // 找出这个颜色缺少的尺码
+        allSizes.forEach(size => {
+          if (!existingSizes.has(size)) {
+            // 构建缺失的SKU代码
+            const missingSkuCode = `${currentProduct.productCode}-${color}-${size}`;
+            
+            // 检查是否已经在zeroStockSkus中
+            if (!zeroStockSkus.find(sku => sku.code === missingSkuCode)) {
+              zeroStockSkus.push({
+                code: missingSkuCode,
+                color: color,
+                size: size,
+                totalQuantity: 0,
+                parentProductCode: currentProduct.productCode,
+                parentProductName: currentProduct.productName,
+                unit: currentProduct.unit || '件'
+              });
+            }
+          }
+        });
+      });
+    }
+    
+    return zeroStockSkus;
+  };
+
+  // 处理SKU选择
+  const handleRestockSkuSelection = (skuCode, checked) => {
+    if (checked) {
+      setSelectedRestockSkus(prev => [...prev, skuCode]);
+      setRestockQuantities(prev => ({ ...prev, [skuCode]: 1 }));
+    } else {
+      setSelectedRestockSkus(prev => prev.filter(code => code !== skuCode));
+      setRestockQuantities(prev => {
+        const newQuantities = { ...prev };
+        delete newQuantities[skuCode];
+        return newQuantities;
+      });
+    }
+  };
+
+  // 处理补货数量变化
+  const handleRestockQuantityChange = (skuCode, quantity) => {
+    setRestockQuantities(prev => ({ ...prev, [skuCode]: quantity }));
+  };
+
+  // 执行补货操作
+  const handleRestockOperation = async () => {
+    if (selectedRestockSkus.length === 0) {
+      message.error('请选择需要补货的SKU');
+      return;
+    }
+
+    if (!restockLocation) {
+      message.error('请选择补货库位');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // 为每个选中的SKU执行入库操作
+      for (const skuCode of selectedRestockSkus) {
+        const quantity = restockQuantities[skuCode] || 1;
+        
+        // 从现有SKU列表或缺失SKU列表中查找SKU信息
+        let sku = currentProduct.skuList.find(s => s.code === skuCode);
+        
+        // 如果在现有SKU列表中找不到，说明是缺失的SKU，从getZeroStockSkus中查找
+        if (!sku) {
+          const zeroStockSkus = getZeroStockSkus();
+          sku = zeroStockSkus.find(s => s.code === skuCode);
+        }
+        
+        // 从SKU代码中解析颜色和尺码
+        const { color, size } = parseSkuCode(skuCode);
+        
+        await api.post('/inbound/', {
+          product_id: currentProduct._id,
+          location_code: restockLocation,
+          quantity: quantity,
+          skuCode: skuCode,
+          sku_color: sku?.color || color,
+          sku_size: sku?.size || size,
+          notes: `断码补货入库 - SKU: ${skuCode}`
+        });
+      }
+
+      message.success(`成功补货 ${selectedRestockSkus.length} 个SKU`);
+      setRestockVisible(false);
+      
+      // 重新加载数据
+      await loadInventory();
+      
+      // 重新显示当前产品详情
+      const updatedProduct = data.find(p => p._id === currentProduct._id);
+      if (updatedProduct) {
+        setCurrentProduct(updatedProduct);
+      }
+      
+    } catch (error) {
+      console.error('补货失败:', error);
+      message.error('补货失败: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="page-container" style={{ padding: 16 }}>
       <MobileNavBar currentPage="inventory" />
@@ -828,10 +1065,38 @@ const MobileInventory = () => {
         />
       </div>
       
+      {/* 排序选项 */}
+      <div className="sort-bar">
+        <span 
+          className={`sort-header ${currentSortField === 'productCode' ? 'active' : ''}`}
+          onClick={() => handleSort('productCode')}
+        >
+          商品编码 {getSortIcon('productCode')}
+        </span>
+        <span 
+          className={`sort-header ${currentSortField === 'skuCount' ? 'active' : ''}`}
+          onClick={() => handleSort('skuCount')}
+        >
+          SKU数 {getSortIcon('skuCount')}
+        </span>
+        <span 
+          className={`sort-header ${currentSortField === 'locationCount' ? 'active' : ''}`}
+          onClick={() => handleSort('locationCount')}
+        >
+          库位数 {getSortIcon('locationCount')}
+        </span>
+        <span 
+          className={`sort-header ${currentSortField === 'quantity' ? 'active' : ''}`}
+          onClick={() => handleSort('quantity')}
+        >
+          总数量 {getSortIcon('quantity')}
+        </span>
+      </div>
+      
       {/* 商品列表 */}
       <List
         loading={loading}
-        dataSource={filteredData}
+        dataSource={currentSortField ? sortedItems : filteredData}
                 renderItem={item => (
           <div className="location-item" onClick={() => showProductDetail(item)}>
             <div className="location-info-section">
@@ -934,6 +1199,14 @@ const MobileInventory = () => {
           setSelectedSku(null); // 重置选中的SKU
         }}
         footer={[
+          <Button 
+            key="restock" 
+            type="primary" 
+            onClick={showRestockModal}
+            disabled={!currentProduct || getZeroStockSkus().length === 0}
+          >
+            断码补货入库
+          </Button>,
           <Button key="close" onClick={() => {
             setDetailVisible(false);
             setSelectedSku(null); // 重置选中的SKU
@@ -1502,6 +1775,126 @@ const MobileInventory = () => {
                 调整数量: {editValue - (currentActionLocation?.quantity || 0) >= 0 ? '+' : ''}{editValue - (currentActionLocation?.quantity || 0)}件
               </div>
             </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* 断码补货Modal */}
+      <Modal
+        title="断码补货入库"
+        open={restockVisible}
+        onCancel={() => setRestockVisible(false)}
+        onOk={handleRestockOperation}
+        confirmLoading={loading}
+        width="90%"
+        bodyStyle={{ maxHeight: '70vh', overflow: 'auto' }}
+      >
+        {currentProduct && (
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              <h4>商品：{currentProduct.productCode} {currentProduct.productName}</h4>
+              <p style={{ color: '#666' }}>
+                以下是库存为0的SKU，请选择需要补货的SKU：
+              </p>
+            </div>
+            
+            {/* 库位选择 */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 8 }}>
+                <strong>补货库位：</strong>
+              </label>
+              <Select
+                value={restockLocation}
+                onChange={setRestockLocation}
+                style={{ width: '100%' }}
+                placeholder="选择或输入库位"
+                showSearch
+                allowClear
+                mode="combobox"
+                filterOption={(input, option) =>
+                  option?.label?.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                }
+              >
+                {locationOptions.map(option => (
+                  <Select.Option key={option.value} value={option.value} label={option.label}>
+                    {option.label}
+                  </Select.Option>
+                ))}
+              </Select>
+            </div>
+
+            {/* 零库存SKU列表 */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 8 }}>
+                <strong>选择补货SKU：</strong>
+              </label>
+              {getZeroStockSkus().length > 0 ? (
+                <div style={{ maxHeight: '300px', overflow: 'auto', border: '1px solid #f0f0f0', borderRadius: 4, padding: 8 }}>
+                  {getZeroStockSkus().map(sku => (
+                    <div 
+                      key={sku.code} 
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        marginBottom: 8,
+                        border: '1px solid #f0f0f0',
+                        borderRadius: 4,
+                        backgroundColor: selectedRestockSkus.includes(sku.code) ? '#f6ffed' : '#fff'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                        <Checkbox
+                          checked={selectedRestockSkus.includes(sku.code)}
+                          onChange={(e) => handleRestockSkuSelection(sku.code, e.target.checked)}
+                          style={{ marginRight: 12 }}
+                        />
+                        <div>
+                          <div style={{ fontWeight: 'bold' }}>{sku.code}</div>
+                          <div style={{ fontSize: '12px', color: '#666' }}>
+                            {sku.color} - {sku.size}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {selectedRestockSkus.includes(sku.code) && (
+                        <div style={{ marginLeft: 16 }}>
+                          <InputNumber
+                            min={1}
+                            value={restockQuantities[sku.code] || 1}
+                            onChange={(value) => handleRestockQuantityChange(sku.code, value)}
+                            style={{ width: 80 }}
+                            placeholder="数量"
+                          />
+                          <span style={{ marginLeft: 4, fontSize: '12px' }}>件</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', color: '#999', padding: 20 }}>
+                  该商品没有零库存的SKU
+                </div>
+              )}
+            </div>
+
+            {/* 汇总信息 */}
+            {selectedRestockSkus.length > 0 && (
+              <div style={{ 
+                backgroundColor: '#f6ffed', 
+                border: '1px solid #b7eb8f',
+                borderRadius: 4,
+                padding: 12,
+                fontSize: 12,
+                color: '#52c41a'
+              }}>
+                <div>已选择 {selectedRestockSkus.length} 个SKU</div>
+                <div>总补货数量: {Object.values(restockQuantities).reduce((sum, qty) => sum + (qty || 0), 0)} 件</div>
+                <div>补货库位: {restockLocation || '未选择'}</div>
+              </div>
+            )}
           </div>
         )}
       </Modal>
