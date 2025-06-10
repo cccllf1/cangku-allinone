@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { Table, Button, Input, List, Card, Space, Badge, Tag, Modal, InputNumber, message, Collapse, Checkbox, Select } from 'antd';
-import { ScanOutlined, SearchOutlined, SaveOutlined, EditOutlined, LogoutOutlined, PlusOutlined, MinusOutlined, CaretRightOutlined } from '@ant-design/icons';
+import { Table, Button, Input, List, Card, Space, Badge, Tag, Modal, InputNumber, message, Collapse, Checkbox, Select, Drawer } from 'antd';
+import { ScanOutlined, SearchOutlined, SaveOutlined, EditOutlined, LogoutOutlined, PlusOutlined, MinusOutlined, CaretRightOutlined, FilterOutlined, RightOutlined, CloseOutlined } from '@ant-design/icons';
 import api from '../api/auth';
 import { useNavigate } from 'react-router-dom';
 import BarcodeScannerComponent from '../components/BarcodeScannerComponent';
@@ -83,6 +83,9 @@ const MobileInventory = () => {
   const [filterOptionVisible, setFilterOptionVisible] = useState(false);
   const [currentFilterField, setCurrentFilterField] = useState('');
   const [currentFilterOptions, setCurrentFilterOptions] = useState([]);
+  
+  // 侧边栏筛选状态
+  const [filterDrawerVisible, setFilterDrawerVisible] = useState(false);
   
   const scrollRef = useRef(null);
   const navigate = useNavigate();
@@ -1319,6 +1322,12 @@ const MobileInventory = () => {
     setFilterOptionVisible(false);
   };
 
+  // 获取筛选文本显示
+  const getFilterText = (filterValues) => {
+    if (filterValues.length === 0) return '未指定';
+    return filterValues.join(', ');
+  };
+
   // 执行补货操作
   const handleRestockOperation = async () => {
     if (selectedRestockSkus.length === 0) {
@@ -1403,6 +1412,16 @@ const MobileInventory = () => {
                 icon={<SearchOutlined />} 
                 onClick={handleSearch}
               />
+              <Button 
+                icon={<FilterOutlined />} 
+                onClick={() => setFilterDrawerVisible(true)}
+                type={(fieldFilters.productCode.length > 0 || 
+                       fieldFilters.color.length > 0 || 
+                       fieldFilters.size.length > 0 ||
+                       fieldFilters.category.length > 0 ||
+                       skuRange !== '未指定' ||
+                       colorRange !== '未指定') ? 'primary' : 'default'}
+              />
             </Space>
           }
           style={{ width: '100%' }}
@@ -1437,77 +1456,7 @@ const MobileInventory = () => {
         </span>
       </div>
       
-      {/* 筛选选项区域 */}
-      <div style={{ 
-        display: 'flex', 
-        flexWrap: 'wrap', 
-        gap: '8px', 
-        marginBottom: 12,
-        padding: '8px 0'
-      }}>
-        <Button 
-          size="small" 
-          type={fieldFilters.productCode.length > 0 ? 'primary' : 'default'}
-          onClick={() => showFilterOptions('productCode', '商品编码')}
-        >
-          商品编码 {fieldFilters.productCode.length > 0 ? `(${fieldFilters.productCode.length})` : ''}
-        </Button>
-        
-        <Button 
-          size="small" 
-          type={fieldFilters.color.length > 0 ? 'primary' : 'default'}
-          onClick={() => showFilterOptions('color', '颜色')}
-        >
-          颜色 {fieldFilters.color.length > 0 ? `(${fieldFilters.color.length})` : ''}
-        </Button>
-        
-        <Button 
-          size="small" 
-          type={fieldFilters.size.length > 0 ? 'primary' : 'default'}
-          onClick={() => showFilterOptions('size', '尺码')}
-        >
-          尺码 {fieldFilters.size.length > 0 ? `(${fieldFilters.size.length})` : ''}
-        </Button>
-        
-        <Button 
-          size="small" 
-          type={fieldFilters.category.length > 0 ? 'primary' : 'default'}
-          onClick={() => showFilterOptions('category', '商品分类')}
-        >
-          分类 {fieldFilters.category.length > 0 ? `(${fieldFilters.category.length})` : ''}
-        </Button>
-        
-        <Button 
-          size="small" 
-          type={skuRange !== '未指定' ? 'primary' : 'default'}
-          onClick={() => showFilterOptions('skuRange', 'SKU区间')}
-        >
-          SKU区间 {skuRange !== '未指定' ? `(${skuRange})` : ''}
-        </Button>
-        
-        <Button 
-          size="small" 
-          type={colorRange !== '未指定' ? 'primary' : 'default'}
-          onClick={() => showFilterOptions('colorRange', '颜色数量')}
-        >
-          颜色数量 {colorRange !== '未指定' ? `(${colorRange})` : ''}
-        </Button>
-        
-        {(fieldFilters.productCode.length > 0 || 
-          fieldFilters.color.length > 0 || 
-          fieldFilters.size.length > 0 ||
-          fieldFilters.category.length > 0 ||
-          skuRange !== '未指定' ||
-          colorRange !== '未指定') && (
-          <Button 
-            size="small" 
-            danger 
-            onClick={clearFilters}
-          >
-            清除筛选
-          </Button>
-        )}
-      </div>
+
 
       {/* 商品列表 */}
       <List
@@ -2322,6 +2271,180 @@ const MobileInventory = () => {
           </div>
         )}
       </Modal>
+
+      {/* 筛选侧边栏 */}
+      <Drawer
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 16, fontWeight: 'bold' }}>筛选</span>
+            <Button 
+              type="text" 
+              icon={<CloseOutlined />} 
+              onClick={() => setFilterDrawerVisible(false)}
+              style={{ border: 'none' }}
+            />
+          </div>
+        }
+        placement="left"
+        open={filterDrawerVisible}
+        onClose={() => setFilterDrawerVisible(false)}
+        width={200}
+        closable={false}
+        bodyStyle={{ padding: 0 }}
+      >
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          {/* 筛选选项列表 */}
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            {/* 商品编号 */}
+            <div 
+              style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid #f0f0f0',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+              onClick={() => showFilterOptions('productCode', '商品编码')}
+            >
+              <div>
+                <div style={{ fontSize: 14, color: '#333' }}>商品编号:</div>
+                <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
+                  {getFilterText(fieldFilters.productCode)}
+                </div>
+              </div>
+              <RightOutlined style={{ fontSize: 12, color: '#999' }} />
+            </div>
+
+            {/* 颜色 */}
+            <div 
+              style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid #f0f0f0',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+              onClick={() => showFilterOptions('color', '颜色')}
+            >
+              <div>
+                <div style={{ fontSize: 14, color: '#333' }}>颜色:</div>
+                <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
+                  {getFilterText(fieldFilters.color)}
+                </div>
+              </div>
+              <RightOutlined style={{ fontSize: 12, color: '#999' }} />
+            </div>
+
+            {/* 尺码 */}
+            <div 
+              style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid #f0f0f0',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+              onClick={() => showFilterOptions('size', '尺码')}
+            >
+              <div>
+                <div style={{ fontSize: 14, color: '#333' }}>尺码:</div>
+                <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
+                  {getFilterText(fieldFilters.size)}
+                </div>
+              </div>
+              <RightOutlined style={{ fontSize: 12, color: '#999' }} />
+            </div>
+
+            {/* 分类 */}
+            <div 
+              style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid #f0f0f0',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+              onClick={() => showFilterOptions('category', '分类')}
+            >
+              <div>
+                <div style={{ fontSize: 14, color: '#333' }}>分类:</div>
+                <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
+                  {getFilterText(fieldFilters.category)}
+                </div>
+              </div>
+              <RightOutlined style={{ fontSize: 12, color: '#999' }} />
+            </div>
+
+            {/* SKU区间 */}
+            <div 
+              style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid #f0f0f0',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+              onClick={() => showFilterOptions('skuRange', 'SKU区间')}
+            >
+              <div>
+                <div style={{ fontSize: 14, color: '#333' }}>SKU区间:</div>
+                <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
+                  {skuRange}
+                </div>
+              </div>
+              <RightOutlined style={{ fontSize: 12, color: '#999' }} />
+            </div>
+
+            {/* 颜色数量区间 */}
+            <div 
+              style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid #f0f0f0',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+              onClick={() => showFilterOptions('colorRange', '颜色数量区间')}
+            >
+              <div>
+                <div style={{ fontSize: 14, color: '#333' }}>颜色数量区间:</div>
+                <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
+                  {colorRange}
+                </div>
+              </div>
+              <RightOutlined style={{ fontSize: 12, color: '#999' }} />
+            </div>
+          </div>
+
+          {/* 清除条件按钮 */}
+          {(fieldFilters.productCode.length > 0 || 
+            fieldFilters.color.length > 0 || 
+            fieldFilters.size.length > 0 ||
+            fieldFilters.category.length > 0 ||
+            skuRange !== '未指定' ||
+            colorRange !== '未指定') && (
+            <div style={{ padding: 16, borderTop: '1px solid #f0f0f0' }}>
+              <Button 
+                danger 
+                block 
+                onClick={() => {
+                  clearFilters();
+                  setFilterDrawerVisible(false);
+                }}
+                style={{ borderRadius: 20 }}
+              >
+                清除条件
+              </Button>
+            </div>
+          )}
+        </div>
+      </Drawer>
 
       {/* 筛选选项Modal */}
       <Modal
