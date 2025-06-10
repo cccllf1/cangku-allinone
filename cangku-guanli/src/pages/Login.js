@@ -33,6 +33,7 @@ const Login = () => {
       console.log('Login response:', response);
       localStorage.setItem('token', response.token);
       localStorage.setItem('is_admin', response.is_admin);
+      localStorage.setItem('username', values.username);
       message.success('登录成功');
       navigate('/inventory');
     } catch (error) {

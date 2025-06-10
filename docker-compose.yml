@@ -40,6 +40,5 @@ services:
       - "8610:80"
     depends_on:
       - backend
-#    volumes:
-#      - ./cangku-guanli:/app
-#      - ./cangku-guanli/build:/usr/share/nginx/html
+    volumes:
+      - ./cangku-guanli/build:/usr/share/nginx/html

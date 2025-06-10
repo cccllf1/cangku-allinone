@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>出库管理 - PDA专用</title>
+<style>
+body {
+  margin: 0;
+  padding: 10px;
+  font-family: sans-serif;
+  background: #ffffff;
+}
+h1 {
+  text-align: center;
+  font-size: 20px;
+  margin: 15px 0;
+  color: #1890ff;
+}
+.search {
+  width: 100%;
+  height: 40px;
+  padding: 5px 10px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+.btn {
+  display: block;
+  width: 100%;
+  background: #1890ff;
+  color: white;
+  text-align: center;
+  padding: 10px 0;
+  font-size: 16px;
+  margin-bottom: 10px;
+  border: none;
+  border-radius: 4px;
+}
+.btn-warning {
+  background: #fa8c16;
+}
+.item {
+  background: white;
+  border: 1px solid #eee;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+}
+.back {
+  margin-top: 20px;
+  background: #999;
+}
+.product-name {
+  font-weight: bold;
+  font-size: 16px;
+}
+.product-code {
+  color: #999;
+  font-size: 12px;
+}
+.quantity {
+  margin-top: 5px;
+}
+.quantity input {
+  width: 60px;
+  height: 30px;
+  padding: 5px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+}
+.location {
+  margin-top: 5px;
+}
+.location select {
+  width: 100%;
+  height: 30px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+}
+.stock {
+  color: #fa8c16;
+  font-size: 14px;
+  margin-top: 5px;
+}
+</style>
+</head>
+<body>
+<h1>出库管理</h1>
+
+<input type="text" class="search" placeholder="输入商品编码或扫描条码" id="searchInput">
+<button class="btn" onclick="searchProduct()">搜索商品</button>
+
+<div id="productList">
+  <!-- 这里会显示添加的商品 -->
+</div>
+
+<button class="btn btn-warning" onclick="submitOutbound()" id="submitBtn" style="display:none">确认出库</button>
+<button class="btn back" onclick="location.href='/pda-simple.html'">返回主菜单</button>
+
+<script>
+// 预设访问令牌
+localStorage.setItem('token', 'pda-direct-access-token');
+localStorage.setItem('is_admin', 'true');
+localStorage.setItem('is_pda', 'true');
+
+// 出库商品列表
+var products = [];
+
+// 搜索商品
+function searchProduct() {
+  var code = document.getElementById('searchInput').value;
+  if (!code) {
+    alert('请输入商品编码');
+    return;
+  }
+  
+  // 搜索中提示
+  document.getElementById('productList').innerHTML = '<div>搜索中...</div>';
+  
+  // 模拟搜索结果
+  setTimeout(function() {
+    // 简化处理，直接显示一个商品
+    var product = {
+      id: Date.now(),
+      code: code,
+      name: '商品 ' + code,
+      quantity: 1,
+      maxQuantity: 100,
+      location: 'A-01',
+      locations: [
+        { code: 'A-01', quantity: 50 },
+        { code: 'B-02', quantity: 30 },
+        { code: 'C-03', quantity: 20 }
+      ]
+    };
+    
+    products = [product]; // 替换当前列表
+    renderProductList();
+    document.getElementById('submitBtn').style.display = 'block';
+    document.getElementById('searchInput').value = '';
+  }, 500);
+}
+
+// 渲染商品列表
+function renderProductList() {
+  var html = '';
+  
+  if (products.length === 0) {
+    html = '<div>请搜索要出库的商品</div>';
+  } else {
+    products.forEach(function(product) {
+      html += '<div class="item" id="product-' + product.id + '">';
+      html += '<div class="product-name">' + product.name + '</div>';
+      html += '<div class="product-code">编码: ' + product.code + '</div>';
+      
+      // 库位选择
+      html += '<div class="location">库位: <select onchange="updateLocation(' + product.id + ', this.value)">';
+      product.locations.forEach(function(loc) {
+        var selected = loc.code === product.location ? 'selected' : '';
+        html += '<option value="' + loc.code + '" ' + selected + '>' + loc.code + ' (库存:' + loc.quantity + ')</option>';
+      });
+      html += '</select></div>';
+      
+      // 数量输入
+      html += '<div class="quantity">数量: <input type="number" value="' + product.quantity + '" min="1" max="' + getMaxQuantity(product) + '" onchange="updateQuantity(' + product.id + ', this.value)"></div>';
+      
+      html += '<div class="stock">可用库存: ' + getMaxQuantity(product) + '</div>';
+      html += '<button class="btn" onclick="removeProduct(' + product.id + ')">删除</button>';
+      html += '</div>';
+    });
+  }
+  
+  document.getElementById('productList').innerHTML = html;
+}
+
+// 获取当前选择库位的最大可用数量
+function getMaxQuantity(product) {
+  var loc = product.locations.find(function(l) { return l.code === product.location; });
+  return loc ? loc.quantity : 0;
+}
+
+// 更新数量
+function updateQuantity(id, value) {
+  var product = products.find(function(p) { return p.id === id; });
+  if (product) {
+    var maxQty = getMaxQuantity(product);
+    var qty = parseInt(value) || 1;
+    
+    // 限制最大数量
+    if (qty > maxQty) {
+      qty = maxQty;
+      alert('超出可用库存，已自动调整为最大可用数量: ' + maxQty);
+    }
+    
+    product.quantity = qty;
+    renderProductList();
+  }
+}
+
+// 更新库位
+function updateLocation(id, value) {
+  var product = products.find(function(p) { return p.id === id; });
+  if (product) {
+    product.location = value;
+    
+    // 更新后重新渲染，确保数量限制正确
+    renderProductList();
+  }
+}
+
+// 移除产品
+function removeProduct(id) {
+  products = products.filter(function(p) { return p.id !== id; });
+  renderProductList();
+  
+  if (products.length === 0) {
+    document.getElementById('submitBtn').style.display = 'none';
+  }
+}
+
+// 提交出库
+function submitOutbound() {
+  if (products.length === 0) {
+    alert('请先添加商品');
+    return;
+  }
+  
+  // 检查是否有超出库存的情况
+  var invalid = products.some(function(p) {
+    return p.quantity > getMaxQuantity(p);
+  });
+  
+  if (invalid) {
+    alert('存在超出可用库存的商品，请检查');
+    return;
+  }
+  
+  alert('出库成功!');
+  products = [];
+  renderProductList();
+  document.getElementById('submitBtn').style.display = 'none';
+}
+
+// 监听回车
+document.getElementById('searchInput').addEventListener('keyup', function(e) {
+  if (e.keyCode === 13) {
+    searchProduct();
+  }
+});
+
+// 初始渲染
+renderProductList();
+</script>
+</body>
+</html> 

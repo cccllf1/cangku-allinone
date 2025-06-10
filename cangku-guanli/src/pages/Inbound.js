@@ -652,6 +652,17 @@ const Inbound = () => {
     img.src = imgUrl;
   };
 
+  const getFullImageUrl = (imagePath) => {
+    if (imagePath && !imagePath.startsWith('http')) {
+      const baseUrl = window.location.protocol + '//' + window.location.host;
+      let fullImageUrl = imagePath.startsWith('/') ? 
+        baseUrl + imagePath : 
+        baseUrl + '/' + imagePath;
+      return fullImageUrl;
+    }
+    return imagePath;
+  };
+
   const columns = [
     {
       title: '图片',
@@ -660,31 +671,18 @@ const Inbound = () => {
       render: (img, record) => {
         console.log('渲染入库图片信息:', record);
         // 从record中获取所有可能的图片相关字段
-        const imageUrl = img || record.image_path || record.imagePath || record.image_url || '';
+        const imageUrl = getFullImageUrl(img || record.image_path || record.imagePath || record.image_url || '');
         
-        // 将URL转换为完整路径
-        let fullImageUrl = imageUrl;
-        if (imageUrl && !imageUrl.startsWith('http')) {
-          const baseUrl = window.location.protocol + '//' + window.location.host;
-          fullImageUrl = imageUrl.startsWith('/') ? 
-            baseUrl + imageUrl : 
-            baseUrl + '/' + imageUrl;
-        }
-        
-        console.log('处理后的图片URL:', fullImageUrl);
+        console.log('处理后的图片URL:', imageUrl);
         
         return imageUrl ? (
           <Image
-            width={48}
-            src={fullImageUrl}
-            style={{ cursor: 'pointer' }}
-            preview={{
-              src: fullImageUrl,
-              mask: '点击预览'
-            }}
+            width={150}
+            src={imageUrl}
             fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+            preview={{ src: imageUrl, mask: '点击放大' }}
           />
-        ) : <span style={{ color: '#aaa' }}>无图</span>
+        ) : <div style={{ color: '#aaa', marginTop: 8 }}>无图片</div>
       }
     },
     { title: '商品编码', dataIndex: 'productCode', key: 'productCode' },

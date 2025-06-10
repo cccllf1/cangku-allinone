@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>入库管理 - PDA专用</title>
+<style>
+body {
+  margin: 0;
+  padding: 10px;
+  font-family: sans-serif;
+  background: #ffffff;
+}
+h1 {
+  text-align: center;
+  font-size: 20px;
+  margin: 15px 0;
+  color: #1890ff;
+}
+.search {
+  width: 100%;
+  height: 40px;
+  padding: 5px 10px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+.btn {
+  display: block;
+  width: 100%;
+  background: #1890ff;
+  color: white;
+  text-align: center;
+  padding: 10px 0;
+  font-size: 16px;
+  margin-bottom: 10px;
+  border: none;
+  border-radius: 4px;
+}
+.btn-success {
+  background: #52c41a;
+}
+.item {
+  background: white;
+  border: 1px solid #eee;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+}
+.back {
+  margin-top: 20px;
+  background: #999;
+}
+.product-name {
+  font-weight: bold;
+  font-size: 16px;
+}
+.product-code {
+  color: #999;
+  font-size: 12px;
+}
+.quantity {
+  margin-top: 5px;
+}
+.quantity input {
+  width: 60px;
+  height: 30px;
+  padding: 5px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+}
+.location {
+  margin-top: 5px;
+}
+.location select {
+  width: 100%;
+  height: 30px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+}
+</style>
+</head>
+<body>
+<h1>入库管理</h1>
+
+<input type="text" class="search" placeholder="输入商品编码或扫描条码" id="searchInput">
+<button class="btn" onclick="addProduct()">添加商品</button>
+
+<div id="productList">
+  <!-- 这里会显示添加的商品 -->
+</div>
+
+<button class="btn btn-success" onclick="submitInbound()" id="submitBtn" style="display:none">确认入库</button>
+<button class="btn back" onclick="location.href='/pda-simple.html'">返回主菜单</button>
+
+<script>
+// 预设访问令牌
+localStorage.setItem('token', 'pda-direct-access-token');
+localStorage.setItem('is_admin', 'true');
+localStorage.setItem('is_pda', 'true');
+
+// 入库商品列表
+var products = [];
+
+// 添加商品
+function addProduct() {
+  var code = document.getElementById('searchInput').value;
+  if (!code) {
+    alert('请输入商品编码');
+    return;
+  }
+  
+  // 简化处理，直接添加
+  var product = {
+    id: Date.now(),
+    code: code,
+    name: '商品 ' + code,
+    quantity: 1
+  };
+  
+  products.push(product);
+  document.getElementById('searchInput').value = '';
+  renderProductList();
+  document.getElementById('submitBtn').style.display = 'block';
+}
+
+// 渲染商品列表
+function renderProductList() {
+  var html = '';
+  
+  if (products.length === 0) {
+    html = '<div>暂无添加商品</div>';
+  } else {
+    products.forEach(function(product) {
+      html += '<div class="item" id="product-' + product.id + '">';
+      html += '<div class="product-name">' + product.name + '</div>';
+      html += '<div class="product-code">编码: ' + product.code + '</div>';
+      html += '<div class="quantity">数量: <input type="number" value="' + product.quantity + '" min="1" onchange="updateQuantity(' + product.id + ', this.value)"></div>';
+      html += '<div class="location">库位: <select onchange="updateLocation(' + product.id + ', this.value)">';
+      html += '<option value="A-01">A-01</option>';
+      html += '<option value="B-02">B-02</option>';
+      html += '<option value="C-03">C-03</option>';
+      html += '</select></div>';
+      html += '<button class="btn" onclick="removeProduct(' + product.id + ')">删除</button>';
+      html += '</div>';
+    });
+  }
+  
+  document.getElementById('productList').innerHTML = html;
+}
+
+// 更新数量
+function updateQuantity(id, value) {
+  var product = products.find(function(p) { return p.id === id; });
+  if (product) {
+    product.quantity = parseInt(value) || 1;
+  }
+}
+
+// 更新库位
+function updateLocation(id, value) {
+  var product = products.find(function(p) { return p.id === id; });
+  if (product) {
+    product.location = value;
+  }
+}
+
+// 移除产品
+function removeProduct(id) {
+  products = products.filter(function(p) { return p.id !== id; });
+  renderProductList();
+  
+  if (products.length === 0) {
+    document.getElementById('submitBtn').style.display = 'none';
+  }
+}
+
+// 提交入库
+function submitInbound() {
+  if (products.length === 0) {
+    alert('请先添加商品');
+    return;
+  }
+  
+  alert('入库成功!');
+  products = [];
+  renderProductList();
+  document.getElementById('submitBtn').style.display = 'none';
+}
+
+// 监听回车
+document.getElementById('searchInput').addEventListener('keyup', function(e) {
+  if (e.keyCode === 13) {
+    addProduct();
+  }
+});
+
+// 初始渲染
+renderProductList();
+</script>
+</body>
+</html> 

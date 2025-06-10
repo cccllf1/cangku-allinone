@@ -12,10 +12,13 @@ const inventoryRoutes = require('./src/routes/inventory');
 const inboundRoutes = require('./src/routes/inbound');
 const outboundRoutes = require('./src/routes/outbound');
 const uploadRoutes = require('./src/routes/upload');
+const skuExternalCodesRoutes = require('./src/routes/skuExternalCodes');
 
 dotenv.config();
 
 const app = express();
+
+console.log('server/app.js 已加载');
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -77,6 +80,7 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/inbound', inboundRoutes);
 app.use('/api/outbound', outboundRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/sku', skuExternalCodesRoutes);
 
 // 这里用环境变量读取 MongoDB 连接字符串
 mongoose.connect(process.env.MONGODB_URI, {

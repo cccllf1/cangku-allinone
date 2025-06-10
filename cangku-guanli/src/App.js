@@ -2,48 +2,40 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { message } from 'antd';
 import Login from './pages/Login';
-import Inventory from './pages/Inventory';
-import Inbound from './pages/Inbound';
-import Outbound from './pages/Outbound';
-import Locations from './pages/Locations';
-import UserManagement from './pages/UserManagement';
-import ChangePassword from './pages/ChangePassword';
-import Profile from './pages/Profile';
-import LocationManage from './pages/LocationManage';
-import ProductManage from './pages/ProductManage';
-import ExternalCodes from './pages/ExternalCodes';
-import TestForm from './pages/TestForm';
-import Home from './pages/Home';
-import withAuth from './components/withAuth';
-// 引入移动端页面
+// 只保留移动端页面
 import MobileInventory from './pages/MobileInventory';
 import MobileInbound from './pages/MobileInbound';
 import MobileOutbound from './pages/MobileOutbound';
 import MobileProductManage from './pages/MobileProductManage';
 import MobileExternalCodes from './pages/MobileExternalCodes';
 import MobileLocationInventory from './pages/MobileLocationInventory';
+import Settings from './pages/Settings';
+import MobileSKUManage from './pages/MobileSKUManage';
+import MobileLocationManage from './pages/MobileLocationManage';
+import './mobile.css';
+import { messageConfig } from './styles/theme';
+import withAuth from './components/withAuth';
 
 // 将message组件挂载到window对象，使其全局可用
 window.antd = { message };
 
-// 使用withAuth高阶组件包装所有需要认证的页面
-const AuthInventory = withAuth(Inventory);
-const AuthInbound = withAuth(Inbound);
-const AuthOutbound = withAuth(Outbound);
-const AuthLocations = withAuth(LocationManage);
-const AuthUserManagement = withAuth(UserManagement);
-const AuthChangePassword = withAuth(ChangePassword);
-const AuthProfile = withAuth(Profile);
-const AuthProductManage = withAuth(ProductManage);
-const AuthExternalCodes = withAuth(ExternalCodes);
-const AuthHome = withAuth(Home);
-// 包装移动端页面
+// 配置message全局默认值
+message.config({
+  top: 50,
+  duration: 2,
+  maxCount: 3
+});
+
+// 只包装移动端页面
 const AuthMobileInventory = withAuth(MobileInventory);
 const AuthMobileInbound = withAuth(MobileInbound);
 const AuthMobileOutbound = withAuth(MobileOutbound);
 const AuthMobileProductManage = withAuth(MobileProductManage);
 const AuthMobileExternalCodes = withAuth(MobileExternalCodes);
 const AuthMobileLocationInventory = withAuth(MobileLocationInventory);
+const AuthSettings = withAuth(Settings);
+const AuthMobileSKUManage = withAuth(MobileSKUManage);
+const AuthMobileLocationManage = withAuth(MobileLocationManage);
 
 function App() {
   // 检测设备类型
@@ -54,23 +46,24 @@ function App() {
     <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
-        
-        {/* 根据设备类型选择桌面版或移动版 */}
-        <Route path="/inventory" element={isMobile ? <AuthMobileInventory /> : <AuthInventory />} />
-        <Route path="/inbound" element={isMobile ? <AuthMobileInbound /> : <AuthInbound />} />
-        <Route path="/outbound" element={isMobile ? <AuthMobileOutbound /> : <AuthOutbound />} />
-        <Route path="/products" element={isMobile ? <AuthMobileProductManage /> : <AuthProductManage />} />
-        <Route path="/external-codes" element={isMobile ? <AuthMobileExternalCodes /> : <AuthExternalCodes />} />
-        <Route path="/location-inventory" element={isMobile ? <AuthMobileLocationInventory /> : <AuthInventory />} />
-        
-        {/* 其他路由 */}
-        <Route path="/locations" element={<AuthLocations />} />
-        <Route path="/users" element={<AuthUserManagement />} />
-        <Route path="/change-password" element={<AuthChangePassword />} />
-        <Route path="/profile" element={<AuthProfile />} />
-        <Route path="/testform" element={<TestForm />} />
-        <Route path="/" element={<Navigate to="/inventory" replace />} />
-        <Route path="/home" element={<AuthHome />} /> 
+        <Route path="/mobile-inventory" element={<AuthMobileInventory />} />
+        <Route path="/mobile-inbound" element={<AuthMobileInbound />} />
+        <Route path="/mobile-outbound" element={<AuthMobileOutbound />} />
+        <Route path="/mobile-product-manage" element={<AuthMobileProductManage />} />
+        <Route path="/mobile-external-codes" element={<AuthMobileExternalCodes />} />
+        <Route path="/mobile-location-inventory" element={<AuthMobileLocationInventory />} />
+        <Route path="/settings" element={<AuthSettings />} />
+        <Route path="/mobile-sku-manage" element={<AuthMobileSKUManage />} />
+        <Route path="/mobile-location-manage" element={<AuthMobileLocationManage />} />
+        {/* 电脑版入口重定向到移动端首页 */}
+        <Route path="/" element={<Navigate to="/mobile-inventory" replace />} />
+        <Route path="/inventory" element={<Navigate to="/mobile-inventory" replace />} />
+        <Route path="/products" element={<Navigate to="/mobile-product-manage" replace />} />
+        <Route path="/external-codes" element={<Navigate to="/mobile-external-codes" replace />} />
+        <Route path="/location-inventory" element={<Navigate to="/mobile-location-inventory" replace />} />
+        <Route path="/locations" element={<Navigate to="/mobile-location-inventory" replace />} />
+        {/* 其它未匹配路径也可重定向到移动端首页 */}
+        <Route path="*" element={<Navigate to="/mobile-inventory" replace />} />
       </Routes>
     </Router>
   );

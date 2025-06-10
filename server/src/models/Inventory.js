@@ -1,6 +1,14 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
+// 定义SKU库存条目子文档
+const skuInventorySchema = new mongoose.Schema({
+  code: { type: String, required: true }, // SKU编码
+  color: { type: String },
+  size: { type: String },
+  quantity: { type: Number, default: 0 }
+}, { _id: false });
+
 const inventorySchema = new mongoose.Schema({
   // 关联到产品
   product_id: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
@@ -16,7 +24,9 @@ const inventorySchema = new mongoose.Schema({
       location_id: { type: Schema.Types.ObjectId, ref: 'Location' },
       locationCode: String,
       locationName: String,
-      quantity: { type: Number, default: 0 }
+      quantity: { type: Number, default: 0 },
+      // 增加SKU级别的库存数据
+      skus: [skuInventorySchema]
     }
   ]
 }, { 

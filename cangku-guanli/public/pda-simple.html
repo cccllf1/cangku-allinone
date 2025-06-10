@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>仓库管理 - 简易版</title>
+<style>
+body {
+  margin: 0;
+  padding: 10px;
+  font-family: sans-serif;
+  background: #ffffff;
+}
+h1 {
+  text-align: center;
+  font-size: 20px;
+  margin: 15px 0;
+  color: #1890ff;
+}
+.btn {
+  display: block;
+  width: 100%;
+  background: #1890ff;
+  color: white;
+  text-align: center;
+  padding: 15px 0;
+  font-size: 18px;
+  margin-bottom: 15px;
+  border: none;
+  border-radius: 4px;
+}
+.green { background: #52c41a; }
+.blue { background: #1890ff; }
+.orange { background: #fa8c16; }
+.red { background: #ff4d4f; }
+</style>
+</head>
+<body>
+<h1>仓库管理系统 - PDA专用</h1>
+
+<button onclick="location.href='/pda-inventory.html'" class="btn green">库存管理</button>
+<button onclick="location.href='/pda-inbound.html'" class="btn blue">入库管理</button>
+<button onclick="location.href='/pda-outbound.html'" class="btn orange">出库管理</button>
+<button onclick="handleLogout()" class="btn red">退出登录</button>
+
+<script>
+// 预设访问令牌
+localStorage.setItem('token', 'pda-direct-access-token');
+localStorage.setItem('is_admin', 'true');
+localStorage.setItem('is_pda', 'true');
+
+// 退出处理
+function handleLogout() {
+  try {
+    localStorage.removeItem('token');
+    localStorage.removeItem('is_admin');
+    localStorage.removeItem('is_pda');
+  } catch(e) {
+    console.log('清除登录信息失败');
+  }
+  
+  alert('已退出登录');
+  // 跳转到登录页面
+  window.location.href = '/pda.html';
+}
+</script>
+</body>
+</html> 

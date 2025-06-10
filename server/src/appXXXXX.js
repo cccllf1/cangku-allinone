@@ -23,6 +23,17 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/inbound', inboundRoutes);
 app.use('/api/outbound', outboundRoutes);
 
+console.log('app.js 已加载');
+let skuExternalCodesRoutes;
+try {
+  skuExternalCodesRoutes = require('./routes/skuExternalCodes');
+  console.log('skuExternalCodesRoutes require 成功');
+} catch (e) {
+  console.error('skuExternalCodesRoutes require 失败', e);
+}
+
+app.use('/api/sku', skuExternalCodesRoutes);
+
 mongoose.connect('mongodb://192.168.11.252:27017/cangku-guanli', {
   useNewUrlParser: true,
   useUnifiedTopology: true

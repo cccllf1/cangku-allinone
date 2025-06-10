@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Button, message, Modal, Input, Space, Typography, Card } from 'antd';
-import { ScanOutlined, CloseCircleOutlined, SwapOutlined, QrcodeOutlined, ExclamationCircleOutlined, KeyboardOutlined } from '@ant-design/icons';
+import { ScanOutlined, CloseCircleOutlined, SwapOutlined, QrcodeOutlined, ExclamationCircleOutlined, EditOutlined } from '@ant-design/icons';
 import jsQR from 'jsqr';
 
 const { Text, Link } = Typography;
@@ -378,7 +378,7 @@ const BarcodeScannerComponent = ({ onScan, onClose }) => {
               
               <Button 
                 type="primary" 
-                icon={<KeyboardOutlined />}
+                icon={<EditOutlined />}
                 onClick={handleManualInput}
               >
                 手动输入
