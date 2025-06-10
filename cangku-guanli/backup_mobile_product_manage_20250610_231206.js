@@ -47,7 +47,6 @@ const MobileProductManage = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [colorOptions, setColorOptions] = useState(DEFAULT_COLORS);
   const [sizeOptions, setSizeOptions] = useState(DEFAULT_SIZES);
-  const [categoryOptions, setCategoryOptions] = useState([]);
   const navigate = useNavigate();
 
   // 添加入库和出库相关状态
@@ -113,7 +112,6 @@ const MobileProductManage = () => {
       // 从localStorage中获取设置，如果有则更新
       const savedColors = localStorage.getItem('productColors');
       const savedSizes = localStorage.getItem('productSizes');
-      const savedCategories = localStorage.getItem('productCategories');
       
       if (savedColors) {
         setColorOptions(JSON.parse(savedColors));
@@ -121,13 +119,6 @@ const MobileProductManage = () => {
       
       if (savedSizes) {
         setSizeOptions(JSON.parse(savedSizes));
-      }
-
-      if (savedCategories) {
-        setCategoryOptions(JSON.parse(savedCategories));
-      } else {
-        // 默认分类
-        setCategoryOptions(['衣服', '裤子', '上衣', '套装', '外套', '连衣裙', '半身裙', '短裤']);
       }
     } catch (error) {
       console.error('加载自定义设置失败:', error);
@@ -184,7 +175,6 @@ const MobileProductManage = () => {
         unit: product.unit,
         description: product.description,
         has_sku: hasSKUs,
-        category: product.category && product.category.length > 0 ? product.category : ['衣服'],
       });
       setImageUrl(product.image_path || product.image || '');
       
@@ -229,7 +219,7 @@ const MobileProductManage = () => {
       setSkuCode(''); // 新增时skuCode为空
     }
     
-    setModalVisible(true);
+    setFormVisible(true);
   };
 
   // 处理表单提交
@@ -648,7 +638,7 @@ const MobileProductManage = () => {
     setUploadedImageUrl('');
     setImageUrl(''); 
     setHasSKU(true);
-    form.setFieldsValue({ has_sku: true, code: '', name: '', unit: '件', description: '', category: ['衣服'] });
+    form.setFieldsValue({ has_sku: true, code: '', name: '', unit: '件', description: '' });
     setSkuCode(''); 
     // 自动生成一个默认颜色为"本色"，尺码为"均码"的SKU
     const productCode = '';
@@ -678,8 +668,7 @@ const MobileProductManage = () => {
       name: currentRecord.name,
       unit: currentRecord.unit,
       description: currentRecord.description,
-      has_sku: !!currentRecord.has_sku,
-      category: currentRecord.category && currentRecord.category.length > 0 ? currentRecord.category : ['衣服']
+      has_sku: !!currentRecord.has_sku 
     });
 
     setHasSKU(!!currentRecord.has_sku);
@@ -851,11 +840,6 @@ const MobileProductManage = () => {
                 <div style={{ color: '#666', fontSize: '0.9em' }}>编码: {product.code}</div>
                 <div style={{ color: '#888', fontSize: '0.9em' }}>
                   单位: {product.unit || '件'}
-                  {product.category && product.category.length > 0 && (
-                    <span style={{ marginLeft: 8 }}>
-                      分类: {Array.isArray(product.category) ? product.category.join(', ') : product.category}
-                    </span>
-                  )}
                   {product.has_sku && 
                     <Badge
                       count={`${product.skus?.length || 0} SKU`}
@@ -962,19 +946,6 @@ const MobileProductManage = () => {
                 extra="选填，如不填写将使用商品编码作为名称"
               >
                 <Input placeholder="请输入商品名称（选填）" />
-              </Form.Item>
-              
-              <Form.Item
-                name="category"
-                label="商品分类"
-              >
-                <Select
-                  mode="tags"
-                  placeholder="选择或输入分类（如：衣服、裤子等）"
-                  style={{ width: '100%' }}
-                  options={categoryOptions.map(cat => ({ value: cat, label: cat }))}
-                  maxTagCount={1}
-                />
               </Form.Item>
               
               {/* 新增SKU编码输入框，仅在未启用多尺码/颜色时显示 */}
@@ -1226,19 +1197,14 @@ const MobileProductManage = () => {
                   key={index} 
                   size="small" 
                   title={
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ fontWeight: 'bold', fontSize: 16 }}>
-                        {group.color}
-                      </span>
-                      <span style={{ color: '#52c41a', fontWeight: 500, fontSize: 14 }}>
+                    <span style={{ fontWeight: 'bold' }}>
+                      {group.color}
+                      <span style={{ marginLeft: 16, color: '#52c41a', fontWeight: 500, fontSize: 14 }}>
                         总库存: {
                           group.sizes.reduce((sum, size) => sum + (skuInventoryMap[size.code] ?? 0), 0)
                         }
                       </span>
-                      <span style={{ fontSize: 14, fontWeight: 400, color: '#666' }}>
-                        尺码列表:
-                      </span>
-                    </div>
+                    </span>
                   }
                   style={{ marginBottom: 16 }}
                 >
@@ -1260,6 +1226,7 @@ const MobileProductManage = () => {
                     
                     {/* 尺码列表 */}
                     <div style={{ flex: 1 }}>
+                      <div style={{ marginBottom: 8 }}>尺码列表:</div>
                         {group.sizes.map((size, idx) => {
                           const skuKey = `${group.color}-${size.size}-${size.code}`;
                           const isExpanded = expandedSkuKey === skuKey;

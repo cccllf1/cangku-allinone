@@ -8,8 +8,10 @@ import theme, { getStyle, messageConfig } from '../styles/theme';
 const Settings = () => {
   const [colors, setColors] = useState([]);
   const [sizes, setSizes] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [newColor, setNewColor] = useState('');
   const [newSize, setNewSize] = useState('');
+  const [newCategory, setNewCategory] = useState('');
   const [loading, setLoading] = useState(false);
   const [userModalVisible, setUserModalVisible] = useState(false);
   const [users, setUsers] = useState([]);
@@ -47,9 +49,13 @@ const Settings = () => {
       const savedSizes = JSON.parse(localStorage.getItem('productSizes')) || [
         'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL'
       ];
+      const savedCategories = JSON.parse(localStorage.getItem('productCategories')) || [
+        '衣服', '裤子', '上衣', '套装', '外套', '连衣裙', '半身裙', '短裤'
+      ];
       
       setColors(savedColors);
       setSizes(savedSizes);
+      setCategories(savedCategories);
     } catch (error) {
       console.error('加载设置失败:', error);
       message.error('加载设置失败');
@@ -63,6 +69,7 @@ const Settings = () => {
       // 保存到localStorage
       localStorage.setItem('productColors', JSON.stringify(colors));
       localStorage.setItem('productSizes', JSON.stringify(sizes));
+      localStorage.setItem('productCategories', JSON.stringify(categories));
       message.success({
         content: '设置已保存',
         icon: messageConfig.success.icon
@@ -113,6 +120,27 @@ const Settings = () => {
   // 删除尺码
   const handleRemoveSize = (size) => {
     setSizes(sizes.filter(s => s !== size));
+  };
+
+  // 添加分类
+  const handleAddCategory = () => {
+    if (!newCategory.trim()) {
+      message.warning('分类名称不能为空');
+      return;
+    }
+
+    if (categories.includes(newCategory.trim())) {
+      message.warning('该分类已存在');
+      return;
+    }
+
+    setCategories([...categories, newCategory.trim()]);
+    setNewCategory('');
+  };
+
+  // 删除分类
+  const handleRemoveCategory = (category) => {
+    setCategories(categories.filter(c => c !== category));
   };
 
   const fetchUsers = async () => {
@@ -273,6 +301,40 @@ const Settings = () => {
                     style={{ fontSize: '14px', padding: '2px 6px' }}
                   >
                     {size}
+                  </Tag>
+                ))}
+              </div>
+            </div>
+            <Divider style={{ margin: `${theme.spacingMd} 0` }} />
+            <div style={{ marginBottom: theme.spacingLg }}>
+              <h3 style={{ fontSize: '15px', marginBottom: theme.spacingMd }}>服装分类管理</h3>
+              <div style={{ marginBottom: theme.spacingSm, display: 'flex' }}>
+                <Input 
+                  placeholder="输入分类名称" 
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  onPressEnter={handleAddCategory}
+                  style={{ marginRight: theme.spacingSm }}
+                />
+                <Button 
+                  type="primary" 
+                  icon={<PlusOutlined />} 
+                  onClick={handleAddCategory}
+                  style={getStyle('successIconBtn')}
+                >
+                  添加
+                </Button>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: theme.spacingSm }}>
+                {categories.map(category => (
+                  <Tag 
+                    key={category}
+                    closable
+                    onClose={() => handleRemoveCategory(category)}
+                    color="orange"
+                    style={{ fontSize: '14px', padding: '2px 6px' }}
+                  >
+                    {category}
                   </Tag>
                 ))}
               </div>
