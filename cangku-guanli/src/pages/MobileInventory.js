@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { Table, Button, Input, List, Card, Space, Badge, Tag, Modal, InputNumber, message, Collapse, Checkbox, Select } from 'antd';
 import { ScanOutlined, SearchOutlined, SaveOutlined, EditOutlined, LogoutOutlined, PlusOutlined, MinusOutlined, CaretRightOutlined } from '@ant-design/icons';
 import api from '../api/auth';
@@ -78,6 +78,11 @@ const MobileInventory = () => {
   const [colorRangeMin, setColorRangeMin] = useState('');
   const [colorRangeMax, setColorRangeMax] = useState('');
   const [colorRangeInputVisible, setColorRangeInputVisible] = useState(false);
+  
+  // 筛选选项弹窗状态
+  const [filterOptionVisible, setFilterOptionVisible] = useState(false);
+  const [currentFilterField, setCurrentFilterField] = useState('');
+  const [currentFilterOptions, setCurrentFilterOptions] = useState([]);
   
   const scrollRef = useRef(null);
   const navigate = useNavigate();
@@ -1221,11 +1226,6 @@ const MobileInventory = () => {
     setColorRangeMin('');
     setColorRangeMax('');
   };
-
-  // 显示筛选选项弹窗 - 参考库位页面实现
-  const [filterOptionVisible, setFilterOptionVisible] = useState(false);
-  const [currentFilterField, setCurrentFilterField] = useState('');
-  const [currentFilterOptions, setCurrentFilterOptions] = useState([]);
 
   const showFilterOptions = (field, fieldLabel) => {
     setCurrentFilterField(field);
