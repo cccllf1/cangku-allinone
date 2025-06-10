@@ -2307,13 +2307,13 @@ const MobileInventory = () => {
               }}
               onClick={() => showFilterOptions('productCode', '商品编码')}
             >
-              <div>
-                <div style={{ fontSize: 14, color: '#333' }}>商品编号:</div>
-                <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
+              <span style={{ fontSize: 14, color: '#333' }}>商品编号:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, color: '#999' }}>
                   {getFilterText(fieldFilters.productCode)}
-                </div>
+                </span>
+                <RightOutlined style={{ fontSize: 12, color: '#999' }} />
               </div>
-              <RightOutlined style={{ fontSize: 12, color: '#999' }} />
             </div>
 
             {/* 颜色 */}
@@ -2328,13 +2328,13 @@ const MobileInventory = () => {
               }}
               onClick={() => showFilterOptions('color', '颜色')}
             >
-              <div>
-                <div style={{ fontSize: 14, color: '#333' }}>颜色:</div>
-                <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
+              <span style={{ fontSize: 14, color: '#333' }}>颜色:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, color: '#999' }}>
                   {getFilterText(fieldFilters.color)}
-                </div>
+                </span>
+                <RightOutlined style={{ fontSize: 12, color: '#999' }} />
               </div>
-              <RightOutlined style={{ fontSize: 12, color: '#999' }} />
             </div>
 
             {/* 尺码 */}
@@ -2349,13 +2349,13 @@ const MobileInventory = () => {
               }}
               onClick={() => showFilterOptions('size', '尺码')}
             >
-              <div>
-                <div style={{ fontSize: 14, color: '#333' }}>尺码:</div>
-                <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
+              <span style={{ fontSize: 14, color: '#333' }}>尺码:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, color: '#999' }}>
                   {getFilterText(fieldFilters.size)}
-                </div>
+                </span>
+                <RightOutlined style={{ fontSize: 12, color: '#999' }} />
               </div>
-              <RightOutlined style={{ fontSize: 12, color: '#999' }} />
             </div>
 
             {/* 分类 */}
@@ -2370,13 +2370,13 @@ const MobileInventory = () => {
               }}
               onClick={() => showFilterOptions('category', '分类')}
             >
-              <div>
-                <div style={{ fontSize: 14, color: '#333' }}>分类:</div>
-                <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
+              <span style={{ fontSize: 14, color: '#333' }}>分类:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, color: '#999' }}>
                   {getFilterText(fieldFilters.category)}
-                </div>
+                </span>
+                <RightOutlined style={{ fontSize: 12, color: '#999' }} />
               </div>
-              <RightOutlined style={{ fontSize: 12, color: '#999' }} />
             </div>
 
             {/* SKU区间 */}
@@ -2391,13 +2391,13 @@ const MobileInventory = () => {
               }}
               onClick={() => showFilterOptions('skuRange', 'SKU区间')}
             >
-              <div>
-                <div style={{ fontSize: 14, color: '#333' }}>SKU区间:</div>
-                <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
+              <span style={{ fontSize: 14, color: '#333' }}>SKU区间:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, color: '#999' }}>
                   {skuRange}
-                </div>
+                </span>
+                <RightOutlined style={{ fontSize: 12, color: '#999' }} />
               </div>
-              <RightOutlined style={{ fontSize: 12, color: '#999' }} />
             </div>
 
             {/* 颜色数量区间 */}
@@ -2412,37 +2412,41 @@ const MobileInventory = () => {
               }}
               onClick={() => showFilterOptions('colorRange', '颜色数量区间')}
             >
-              <div>
-                <div style={{ fontSize: 14, color: '#333' }}>颜色数量区间:</div>
-                <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
+              <span style={{ fontSize: 14, color: '#333' }}>颜色数量区间:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, color: '#999' }}>
                   {colorRange}
-                </div>
+                </span>
+                <RightOutlined style={{ fontSize: 12, color: '#999' }} />
               </div>
-              <RightOutlined style={{ fontSize: 12, color: '#999' }} />
             </div>
           </div>
 
           {/* 清除条件按钮 */}
-          {(fieldFilters.productCode.length > 0 || 
-            fieldFilters.color.length > 0 || 
-            fieldFilters.size.length > 0 ||
-            fieldFilters.category.length > 0 ||
-            skuRange !== '未指定' ||
-            colorRange !== '未指定') && (
-            <div style={{ padding: 16, borderTop: '1px solid #f0f0f0' }}>
-              <Button 
-                danger 
-                block 
-                onClick={() => {
-                  clearFilters();
-                  setFilterDrawerVisible(false);
-                }}
-                style={{ borderRadius: 20 }}
-              >
-                清除条件
-              </Button>
-            </div>
-          )}
+          <div style={{ padding: 16, borderTop: '1px solid #f0f0f0' }}>
+            <Button 
+              danger 
+              block 
+              onClick={() => {
+                clearFilters();
+                setFilterDrawerVisible(false);
+              }}
+              style={{ 
+                borderRadius: 20,
+                height: 40,
+                fontSize: 16,
+                fontWeight: 'bold'
+              }}
+              disabled={!(fieldFilters.productCode.length > 0 || 
+                        fieldFilters.color.length > 0 || 
+                        fieldFilters.size.length > 0 ||
+                        fieldFilters.category.length > 0 ||
+                        skuRange !== '未指定' ||
+                        colorRange !== '未指定')}
+            >
+              清除条件
+            </Button>
+          </div>
         </div>
       </Drawer>
 
