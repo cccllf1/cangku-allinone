@@ -55,6 +55,30 @@ const MobileInventory = () => {
   const [restockLocation, setRestockLocation] = useState(''); // 补货目标库位
   const [restockQuantities, setRestockQuantities] = useState({}); // 每个SKU的补货数量
   const [locationOptions, setLocationOptions] = useState([]); // 库位选项
+  
+  // 动态筛选状态 - 参考库位页面的实现
+  const [fieldFilters, setFieldFilters] = useState({
+    productCode: [],
+    color: [],
+    size: [],
+    quantity: [],
+    locationCode: [],
+    category: [],
+    skuRange: [],
+    colorRange: []
+  });
+  
+  // 新增筛选状态
+  const [category, setCategory] = useState('未指定');
+  const [skuRange, setSkuRange] = useState('未指定');
+  const [skuRangeMin, setSkuRangeMin] = useState('');
+  const [skuRangeMax, setSkuRangeMax] = useState('');
+  const [skuRangeInputVisible, setSkuRangeInputVisible] = useState(false);
+  const [colorRange, setColorRange] = useState('未指定');
+  const [colorRangeMin, setColorRangeMin] = useState('');
+  const [colorRangeMax, setColorRangeMax] = useState('');
+  const [colorRangeInputVisible, setColorRangeInputVisible] = useState(false);
+  
   const scrollRef = useRef(null);
   const navigate = useNavigate();
 
@@ -975,6 +999,326 @@ const MobileInventory = () => {
     setRestockQuantities(prev => ({ ...prev, [skuCode]: quantity }));
   };
 
+  // 动态筛选选项生成 - 参考库位页面的实现
+  const getDynamicFieldOptions = useMemo(() => {
+    const options = {
+      productCode: new Set(),
+      color: new Set(),
+      size: new Set(),
+      quantity: new Set(),
+      locationCode: new Set(),
+      category: new Set()
+    };
+
+    // 遍历所有商品和SKU
+    data.forEach(product => {
+      if (product.skuList && product.skuList.length > 0) {
+        product.skuList.forEach(sku => {
+          // 检查是否符合已选的筛选条件
+          let matchesFilters = true;
+
+          // 检查商品编号
+          if (fieldFilters.productCode.length > 0) {
+            const baseCode = sku.code?.split('-')[0];
+            const matches = fieldFilters.productCode.some(code => 
+              (baseCode && code === baseCode) ||
+              (product.productCode && code === product.productCode)
+            );
+            if (!matches) matchesFilters = false;
+          }
+
+          // 检查颜色
+          if (fieldFilters.color.length > 0) {
+            const skuColor = sku.code ? sku.code.split('-')[1] : null;
+            const matches = fieldFilters.color.some(color => 
+              (skuColor && color === skuColor) ||
+              (sku.color && color === sku.color)
+            );
+            if (!matches) matchesFilters = false;
+          }
+
+          // 检查尺码
+          if (fieldFilters.size.length > 0) {
+            const skuSize = sku.code ? sku.code.split('-')[2] : null;
+            const matches = fieldFilters.size.some(size => 
+              (skuSize && size === skuSize) ||
+              (sku.size && size === sku.size)
+            );
+            if (!matches) matchesFilters = false;
+          }
+
+          // 检查分类
+          if (fieldFilters.category.length > 0) {
+            const matches = fieldFilters.category.some(cat => 
+              product.category === cat || product.type === cat
+            );
+            if (!matches) matchesFilters = false;
+          }
+
+          // 如果符合所有已选条件，则添加该商品的选项
+          if (matchesFilters) {
+            // 添加商品编号选项 - 只提取基础商品编号
+            if (sku.code) {
+              const baseCode = sku.code.split('-')[0];
+              if (baseCode) options.productCode.add(baseCode);
+            }
+            if (product.productCode) options.productCode.add(product.productCode);
+
+            // 添加颜色选项
+            if (sku.code) {
+              const parts = sku.code.split('-');
+              if (parts[1]) options.color.add(parts[1]);
+            }
+            if (sku.color) options.color.add(sku.color);
+
+            // 添加尺码选项
+            if (sku.code) {
+              const parts = sku.code.split('-');
+              if (parts[2]) options.size.add(parts[2]);
+            }
+            if (sku.size) options.size.add(sku.size);
+
+            // 添加数量选项
+            if (sku.totalQuantity > 0) {
+              options.quantity.add(sku.totalQuantity.toString());
+            }
+
+            // 添加分类选项
+            if (product.category) options.category.add(product.category);
+            if (product.type) options.category.add(product.type);
+
+            // 添加库位选项
+            if (sku.detailsByLocation) {
+              sku.detailsByLocation.forEach(location => {
+                if (location.locationCode) options.locationCode.add(location.locationCode);
+              });
+            }
+          }
+        });
+      }
+    });
+
+    // 转换Set为数组并排序
+    const result = {};
+    Object.keys(options).forEach(key => {
+      result[key] = Array.from(options[key])
+        .filter(Boolean)
+        .sort((a, b) => {
+          if (key === 'quantity') {
+            return Number(a) - Number(b);
+          }
+          return String(a).localeCompare(String(b));
+        });
+    });
+
+    return result;
+  }, [data, fieldFilters]);
+
+  // 筛选逻辑 - 基于fieldFilters动态筛选商品
+  const filteredItemsByFilters = useMemo(() => {
+    if (!data || data.length === 0) return [];
+
+    return data.filter(product => {
+      // 如果没有SKU，直接返回false
+      if (!product.skuList || product.skuList.length === 0) return false;
+
+      // 检查是否有任何SKU符合筛选条件
+      return product.skuList.some(sku => {
+        let matchesFilters = true;
+
+        // 检查商品编号
+        if (fieldFilters.productCode.length > 0) {
+          const baseCode = sku.code?.split('-')[0];
+          const matches = fieldFilters.productCode.some(code => 
+            (baseCode && code === baseCode) ||
+            (product.productCode && code === product.productCode)
+          );
+          if (!matches) matchesFilters = false;
+        }
+
+        // 检查颜色
+        if (fieldFilters.color.length > 0) {
+          const skuColor = sku.code ? sku.code.split('-')[1] : null;
+          const matches = fieldFilters.color.some(color => 
+            (skuColor && color === skuColor) ||
+            (sku.color && color === sku.color)
+          );
+          if (!matches) matchesFilters = false;
+        }
+
+        // 检查尺码
+        if (fieldFilters.size.length > 0) {
+          const skuSize = sku.code ? sku.code.split('-')[2] : null;
+          const matches = fieldFilters.size.some(size => 
+            (skuSize && size === skuSize) ||
+            (sku.size && size === sku.size)
+          );
+          if (!matches) matchesFilters = false;
+        }
+
+        // 检查分类
+        if (fieldFilters.category.length > 0) {
+          const matches = fieldFilters.category.some(cat => 
+            product.category === cat || product.type === cat
+          );
+          if (!matches) matchesFilters = false;
+        }
+
+        // SKU数量区间检查
+        if (skuRangeMin !== '' && skuRangeMax !== '') {
+          const skuCount = product.skuList ? product.skuList.length : 0;
+          const min = parseInt(skuRangeMin) || 0;
+          const max = parseInt(skuRangeMax) || 0;
+          if (skuCount < min || skuCount > max) matchesFilters = false;
+        } else if (skuRangeMin !== '') {
+          const skuCount = product.skuList ? product.skuList.length : 0;
+          const min = parseInt(skuRangeMin) || 0;
+          if (skuCount < min) matchesFilters = false;
+        } else if (skuRangeMax !== '') {
+          const skuCount = product.skuList ? product.skuList.length : 0;
+          const max = parseInt(skuRangeMax) || 0;
+          if (skuCount > max) matchesFilters = false;
+        }
+
+        // 颜色数量区间检查
+        if (colorRangeMin !== '' && colorRangeMax !== '') {
+          const colorCount = product.skuList ? new Set(product.skuList.map(s => s.color || s.code?.split('-')[1]).filter(Boolean)).size : 0;
+          const min = parseInt(colorRangeMin) || 0;
+          const max = parseInt(colorRangeMax) || 0;
+          if (colorCount < min || colorCount > max) matchesFilters = false;
+        } else if (colorRangeMin !== '') {
+          const colorCount = product.skuList ? new Set(product.skuList.map(s => s.color || s.code?.split('-')[1]).filter(Boolean)).size : 0;
+          const min = parseInt(colorRangeMin) || 0;
+          if (colorCount < min) matchesFilters = false;
+        } else if (colorRangeMax !== '') {
+          const colorCount = product.skuList ? new Set(product.skuList.map(s => s.color || s.code?.split('-')[1]).filter(Boolean)).size : 0;
+          const max = parseInt(colorRangeMax) || 0;
+          if (colorCount > max) matchesFilters = false;
+        }
+
+        return matchesFilters;
+      });
+    });
+  }, [data, fieldFilters, skuRangeMin, skuRangeMax, colorRangeMin, colorRangeMax]);
+
+  // 清除筛选条件
+  const clearFilters = () => {
+    setFieldFilters({
+      productCode: [],
+      color: [],
+      size: [],
+      quantity: [],
+      locationCode: [],
+      category: [],
+      skuRange: [],
+      colorRange: []
+    });
+    setCategory('未指定');
+    setSkuRange('未指定');
+    setSkuRangeMin('');
+    setSkuRangeMax('');
+    setColorRange('未指定');
+    setColorRangeMin('');
+    setColorRangeMax('');
+  };
+
+  // 显示筛选选项弹窗 - 参考库位页面实现
+  const [filterOptionVisible, setFilterOptionVisible] = useState(false);
+  const [currentFilterField, setCurrentFilterField] = useState('');
+  const [currentFilterOptions, setCurrentFilterOptions] = useState([]);
+
+  const showFilterOptions = (field, fieldLabel) => {
+    setCurrentFilterField(field);
+    
+    // 如果是SKU区间，显示输入界面
+    if (field === 'skuRange') {
+      setSkuRangeInputVisible(true);
+      return;
+    }
+    
+    // 如果是颜色数量区间，显示输入界面
+    if (field === 'colorRange') {
+      setColorRangeInputVisible(true);
+      return;
+    }
+    
+    let options = [];
+    switch(field) {
+      case 'productCode':
+        options = getDynamicFieldOptions.productCode || [];
+        break;
+      case 'color':
+        options = getDynamicFieldOptions.color || [];
+        break;
+      case 'size':
+        options = getDynamicFieldOptions.size || [];
+        break;
+      case 'quantity':
+        options = getDynamicFieldOptions.quantity || [];
+        break;
+      case 'category':
+        options = getDynamicFieldOptions.category || [];
+        break;
+      default:
+        options = [];
+    }
+    
+    setCurrentFilterOptions(options);
+    setFilterOptionVisible(true);
+  };
+
+  // 选择筛选选项 - 参考库位页面实现
+  const selectFilterOption = (option) => {
+    // 更新fieldFilters状态以触发动态筛选
+    setFieldFilters(prevFilters => {
+      const newFilters = { ...prevFilters };
+      
+      switch(currentFilterField) {
+        case 'productCode':
+          // 如果选项已存在则移除，否则添加（支持多选）
+          if (newFilters.productCode.includes(option)) {
+            newFilters.productCode = newFilters.productCode.filter(item => item !== option);
+          } else {
+            newFilters.productCode = [...newFilters.productCode, option];
+          }
+          break;
+        case 'color':
+          if (newFilters.color.includes(option)) {
+            newFilters.color = newFilters.color.filter(item => item !== option);
+          } else {
+            newFilters.color = [...newFilters.color, option];
+          }
+          break;
+        case 'size':
+          if (newFilters.size.includes(option)) {
+            newFilters.size = newFilters.size.filter(item => item !== option);
+          } else {
+            newFilters.size = [...newFilters.size, option];
+          }
+          break;
+        case 'quantity':
+          if (newFilters.quantity.includes(option)) {
+            newFilters.quantity = newFilters.quantity.filter(item => item !== option);
+          } else {
+            newFilters.quantity = [...newFilters.quantity, option];
+          }
+          break;
+        case 'category':
+          if (newFilters.category.includes(option)) {
+            newFilters.category = newFilters.category.filter(item => item !== option);
+          } else {
+            newFilters.category = [...newFilters.category, option];
+          }
+          setCategory(newFilters.category.length > 0 ? newFilters.category.join(', ') : '未指定');
+          break;
+      }
+      
+      return newFilters;
+    });
+    
+    setFilterOptionVisible(false);
+  };
+
   // 执行补货操作
   const handleRestockOperation = async () => {
     if (selectedRestockSkus.length === 0) {
@@ -1093,10 +1437,90 @@ const MobileInventory = () => {
         </span>
       </div>
       
+      {/* 筛选选项区域 */}
+      <div style={{ 
+        display: 'flex', 
+        flexWrap: 'wrap', 
+        gap: '8px', 
+        marginBottom: 12,
+        padding: '8px 0'
+      }}>
+        <Button 
+          size="small" 
+          type={fieldFilters.productCode.length > 0 ? 'primary' : 'default'}
+          onClick={() => showFilterOptions('productCode', '商品编码')}
+        >
+          商品编码 {fieldFilters.productCode.length > 0 ? `(${fieldFilters.productCode.length})` : ''}
+        </Button>
+        
+        <Button 
+          size="small" 
+          type={fieldFilters.color.length > 0 ? 'primary' : 'default'}
+          onClick={() => showFilterOptions('color', '颜色')}
+        >
+          颜色 {fieldFilters.color.length > 0 ? `(${fieldFilters.color.length})` : ''}
+        </Button>
+        
+        <Button 
+          size="small" 
+          type={fieldFilters.size.length > 0 ? 'primary' : 'default'}
+          onClick={() => showFilterOptions('size', '尺码')}
+        >
+          尺码 {fieldFilters.size.length > 0 ? `(${fieldFilters.size.length})` : ''}
+        </Button>
+        
+        <Button 
+          size="small" 
+          type={fieldFilters.category.length > 0 ? 'primary' : 'default'}
+          onClick={() => showFilterOptions('category', '商品分类')}
+        >
+          分类 {fieldFilters.category.length > 0 ? `(${fieldFilters.category.length})` : ''}
+        </Button>
+        
+        <Button 
+          size="small" 
+          type={skuRange !== '未指定' ? 'primary' : 'default'}
+          onClick={() => showFilterOptions('skuRange', 'SKU区间')}
+        >
+          SKU区间 {skuRange !== '未指定' ? `(${skuRange})` : ''}
+        </Button>
+        
+        <Button 
+          size="small" 
+          type={colorRange !== '未指定' ? 'primary' : 'default'}
+          onClick={() => showFilterOptions('colorRange', '颜色数量')}
+        >
+          颜色数量 {colorRange !== '未指定' ? `(${colorRange})` : ''}
+        </Button>
+        
+        {(fieldFilters.productCode.length > 0 || 
+          fieldFilters.color.length > 0 || 
+          fieldFilters.size.length > 0 ||
+          fieldFilters.category.length > 0 ||
+          skuRange !== '未指定' ||
+          colorRange !== '未指定') && (
+          <Button 
+            size="small" 
+            danger 
+            onClick={clearFilters}
+          >
+            清除筛选
+          </Button>
+        )}
+      </div>
+
       {/* 商品列表 */}
       <List
         loading={loading}
-        dataSource={currentSortField ? sortedItems : filteredData}
+        dataSource={currentSortField ? sortedItems : (
+          // 优先使用筛选后的数据，如果没有筛选条件则使用搜索后的数据
+          (fieldFilters.productCode.length > 0 || 
+           fieldFilters.color.length > 0 || 
+           fieldFilters.size.length > 0 ||
+           fieldFilters.category.length > 0 ||
+           skuRange !== '未指定' ||
+           colorRange !== '未指定') ? filteredItemsByFilters : filteredData
+        )}
                 renderItem={item => (
           <div className="location-item" onClick={() => showProductDetail(item)}>
             <div className="location-info-section">
@@ -1897,6 +2321,145 @@ const MobileInventory = () => {
             )}
           </div>
         )}
+      </Modal>
+
+      {/* 筛选选项Modal */}
+      <Modal
+        title={`选择${currentFilterField === 'productCode' ? '商品编码' : 
+                currentFilterField === 'color' ? '颜色' :
+                currentFilterField === 'size' ? '尺码' :
+                currentFilterField === 'category' ? '分类' : '筛选选项'}`}
+        open={filterOptionVisible}
+        onCancel={() => setFilterOptionVisible(false)}
+        footer={null}
+        width="80%"
+        bodyStyle={{ maxHeight: '60vh', overflow: 'auto' }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {currentFilterOptions.map(option => {
+            let isSelected = false;
+            switch(currentFilterField) {
+              case 'productCode':
+                isSelected = fieldFilters.productCode.includes(option);
+                break;
+              case 'color':
+                isSelected = fieldFilters.color.includes(option);
+                break;
+              case 'size':
+                isSelected = fieldFilters.size.includes(option);
+                break;
+              case 'category':
+                isSelected = fieldFilters.category.includes(option);
+                break;
+            }
+            
+            return (
+              <div
+                key={option}
+                onClick={() => selectFilterOption(option)}
+                style={{
+                  padding: '12px 16px',
+                  border: '1px solid #d9d9d9',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  backgroundColor: isSelected ? '#1890ff' : '#fff',
+                  color: isSelected ? '#fff' : '#333',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  transition: 'all 0.3s'
+                }}
+              >
+                <span>{option}</span>
+                {isSelected && <span>✓</span>}
+              </div>
+            );
+          })}
+        </div>
+      </Modal>
+
+      {/* SKU区间输入Modal */}
+      <Modal
+        title="设置SKU数量区间"
+        open={skuRangeInputVisible}
+        onCancel={() => setSkuRangeInputVisible(false)}
+        onOk={() => {
+          if (skuRangeMin !== '' && skuRangeMax !== '') {
+            setSkuRange(`${skuRangeMin}-${skuRangeMax}款`);
+          } else if (skuRangeMin !== '') {
+            setSkuRange(`≥${skuRangeMin}款`);
+          } else if (skuRangeMax !== '') {
+            setSkuRange(`≤${skuRangeMax}款`);
+          } else {
+            setSkuRange('未指定');
+          }
+          setSkuRangeInputVisible(false);
+        }}
+        okText="确定"
+        cancelText="取消"
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+          <span>最小SKU数量：</span>
+          <InputNumber
+            min={0}
+            value={skuRangeMin}
+            onChange={setSkuRangeMin}
+            placeholder="最小值"
+            style={{ flex: 1 }}
+          />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>最大SKU数量：</span>
+          <InputNumber
+            min={0}
+            value={skuRangeMax}
+            onChange={setSkuRangeMax}
+            placeholder="最大值"
+            style={{ flex: 1 }}
+          />
+        </div>
+      </Modal>
+
+      {/* 颜色数量区间输入Modal */}
+      <Modal
+        title="设置颜色数量区间"
+        open={colorRangeInputVisible}
+        onCancel={() => setColorRangeInputVisible(false)}
+        onOk={() => {
+          if (colorRangeMin !== '' && colorRangeMax !== '') {
+            setColorRange(`${colorRangeMin}-${colorRangeMax}色`);
+          } else if (colorRangeMin !== '') {
+            setColorRange(`≥${colorRangeMin}色`);
+          } else if (colorRangeMax !== '') {
+            setColorRange(`≤${colorRangeMax}色`);
+          } else {
+            setColorRange('未指定');
+          }
+          setColorRangeInputVisible(false);
+        }}
+        okText="确定"
+        cancelText="取消"
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+          <span>最小颜色数：</span>
+          <InputNumber
+            min={0}
+            value={colorRangeMin}
+            onChange={setColorRangeMin}
+            placeholder="最小值"
+            style={{ flex: 1 }}
+          />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>最大颜色数：</span>
+          <InputNumber
+            min={0}
+            value={colorRangeMax}
+            onChange={setColorRangeMax}
+            placeholder="最大值"
+            style={{ flex: 1 }}
+          />
+        </div>
       </Modal>
 
       {/* 扫码器Modal */}
