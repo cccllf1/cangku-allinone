@@ -1,11 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Table, Button, Input, List, Card, Space, Badge, Tag, Modal, InputNumber, message, Collapse } from 'antd';
 import { ScanOutlined, SearchOutlined, SaveOutlined, EditOutlined, LogoutOutlined, PlusOutlined, MinusOutlined, CaretRightOutlined } from '@ant-design/icons';
 import api from '../api/auth';
 import { useNavigate } from 'react-router-dom';
 import BarcodeScannerComponent from '../components/BarcodeScannerComponent';
 import MobileNavBar from '../components/MobileNavBar';
-import './MobileInventory.css';
 
 // Add getFullImageUrl function if not already present
 const getFullImageUrl = (path) => {
@@ -42,7 +41,6 @@ const MobileInventory = () => {
   const [scanning, setScanning] = useState(false);
   const [expandedRows, setExpandedRows] = useState([]);
   const [expandedSku, setExpandedSku] = useState(null);
-  const scrollRef = useRef(null);
   const navigate = useNavigate();
 
   const handleScan = () => {
@@ -672,56 +670,55 @@ const MobileInventory = () => {
       </div>
       
       {/* 商品列表 */}
-      <List
-        loading={loading}
-        dataSource={filteredData}
-                renderItem={item => (
-          <div className="location-item" onClick={() => showProductDetail(item)}>
-            <div className="location-info-section">
-              <div className="location-code">{item.productCode}</div>
-              <div className="location-info">
-                <span>{item.skuList ? item.skuList.length : 0}款式</span>
-                <span>{item.locations ? item.locations.length : 0}库位</span>
-              </div>
-              <div className="location-total">合计{item.quantity || 0}{item.unit || '件'}</div>
-            </div>
-            {item.skuList && item.skuList.length > 0 && (
-              <div className="location-images-section">
-                {(() => {
-                  // 计算各个颜色的合计数量
-                  const colorQuantities = {};
-                  if (item.skuList && item.skuList.length > 0) {
-                    item.skuList.forEach(sku => {
-                      const color = sku.color || '未知';
-                      colorQuantities[color] = (colorQuantities[color] || 0) + (sku.totalQuantity || 0);
-                    });
-                  }
-                  
-                  console.log('商品颜色数量:', colorQuantities); // 调试输出
-                  return Object.entries(colorQuantities)
-                    .sort(([,a], [,b]) => a - b) // 按数量升序排列，让数量最多的排在最右边
-                    .map(([color, quantity], index) => {
-                      // 找到该颜色的第一个SKU图片
-                      const firstSkuOfColor = item.skuList?.find(sku => sku.color === color);
-                      const imagePath = firstSkuOfColor?.image || item.image;
-                      
-                      return (
-                        <div key={`${color}-${index}`} className="sku-item">
-                          <div 
-                            style={{ 
-                              width: '100%', 
-                              height: '100%', 
-                              border: '1px solid #ddd',
-                              borderRadius: 4,
-                              overflow: 'hidden',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              backgroundColor: '#f5f5f5',
-                              position: 'relative'
-                            }}
-                          >
-                            {imagePath ? (
+      <div className="product-list">
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '32px 16px' }}>加载中...</div>
+        ) : filteredData.length > 0 ? (
+          filteredData.map(item => {
+            // 计算各个颜色的合计数量
+            const colorQuantities = {};
+            if (item.skuList && item.skuList.length > 0) {
+              item.skuList.forEach(sku => {
+                const color = sku.color || '未知';
+                colorQuantities[color] = (colorQuantities[color] || 0) + (sku.totalQuantity || 0);
+              });
+            }
+            
+            return (
+              <div key={item.key || item.productCode} className="product-item" onClick={() => showProductDetail(item)}>
+                <div className="product-info-section">
+                  <div className="product-code">{item.productCode}</div>
+                  <div className="product-info">
+                    <span>{item.skuList ? item.skuList.length : 0}款式</span>
+                    <span>{item.locations ? item.locations.length : 0}库位</span>
+                  </div>
+                  <div className="product-total">合计{item.quantity || 0}{item.unit || '件'}</div>
+                </div>
+                {Object.keys(colorQuantities).length > 0 && (
+                  <div className="product-color-section">
+                    {Object.entries(colorQuantities)
+                      .sort(([,a], [,b]) => a - b) // 按数量升序排列
+                      .map(([color, quantity], index) => (
+                      <div key={`${color}-${index}`} className="color-quantity-item">
+                        <div 
+                          style={{ 
+                            width: '60px', 
+                            height: '60px', 
+                            border: '1px solid #ddd',
+                            borderRadius: 4,
+                            overflow: 'hidden',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: '#f5f5f5',
+                            position: 'relative'
+                          }}
+                        >
+                          {/* 显示该颜色的第一个SKU图片 */}
+                          {(() => {
+                            const firstSkuOfColor = item.skuList?.find(sku => sku.color === color);
+                            const imagePath = firstSkuOfColor?.image || item.image;
+                            return imagePath ? (
                               <img 
                                 src={getFullImageUrl(imagePath)} 
                                 alt={color}
@@ -735,36 +732,228 @@ const MobileInventory = () => {
                                   e.target.nextSibling.style.display = 'flex';
                                 }}
                               />
-                            ) : null}
-                            <div 
-                              style={{ 
-                                width: '100%', 
-                                height: '100%', 
-                                backgroundColor: '#f0f0f0',
-                                display: imagePath ? 'none' : 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '10px',
-                                color: '#666',
-                                textAlign: 'center',
-                                lineHeight: '12px',
-                                position: 'absolute',
-                                top: 0,
-                                left: 0
-                              }}
-                            >
-                              {imagePath ? '无图' : color.substring(0, 6)}
-                            </div>
+                            ) : null;
+                          })()}
+                          <div 
+                            style={{ 
+                              width: '100%', 
+                              height: '100%', 
+                              backgroundColor: '#f0f0f0',
+                              display: (() => {
+                                const firstSkuOfColor = item.skuList?.find(sku => sku.color === color);
+                                const imagePath = firstSkuOfColor?.image || item.image;
+                                return imagePath ? 'none' : 'flex';
+                              })(),
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '10px',
+                              color: '#666',
+                              textAlign: 'center',
+                              lineHeight: '12px',
+                              position: 'absolute',
+                              top: 0,
+                              left: 0
+                            }}
+                          >
+                            {color.substring(0, 2)}
                           </div>
-                          <div className="sku-size-tag">{color}</div>
-                          <div className="sku-quantity">{quantity}</div>
                         </div>
-                      );
-                    });
-                })()}
+                        <div className="color-tag">{color}</div>
+                        <div className="color-quantity">{quantity}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+            );
+          })
+        ) : (
+          <div style={{ textAlign: 'center', padding: '32px 16px', color: '#999' }}>
+            暂无商品信息
           </div>
+        )}
+      </div>
+      
+      {/* 商品详情弹窗 */}
+      <Modal
+        title={`商品详情: ${currentProduct?.productName || currentProduct?.productCode}`}
+        open={detailVisible}
+        onCancel={() => {
+          setDetailVisible(false);
+          setCurrentProduct(null);
+          setSelectedSku(null);
+        }}
+        footer={[
+          <Button key="close" onClick={() => {
+            setDetailVisible(false);
+            setCurrentProduct(null);
+            setSelectedSku(null);
+          }}>
+            关闭
+          </Button>
+        ]}
+        bodyStyle={{ 
+          maxHeight: '70vh', 
+          overflowY: 'scroll',
+          WebkitOverflowScrolling: 'touch'
+        }}
+      >
+        {currentProduct && (
+          <div>
+            {/* 展开内容：SKU明细 from currentProduct.skuList，改为颜色-尺码二级折叠 */}
+            {currentProduct.skuList && currentProduct.skuList.length > 0 ? (
+              Object.entries(groupSkusByColor(currentProduct.skuList)).map(([color, skus]) => (
+                <Collapse key={color} bordered={false} style={{ background: '#fafbfc', marginBottom: 8 }}>
+                  <Collapse.Panel
+                    key={color}
+                    header={
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <Tag color="blue" style={{ fontSize: 16 }}>{color}</Tag>
+                        <span style={{ marginLeft: 8, color: '#888' }}>共{skus.length}款</span>
+                        <span style={{ marginLeft: 16, color: '#52c41a', fontWeight: 500, fontSize: 14 }}>
+                          总库存: {skus.reduce((sum, sku) => sum + (sku.totalQuantity || 0), 0)}
+                        </span>
+                      </div>
+                    }
+                  >
+                      <List
+                        size="small"
+                        dataSource={skus}
+                        renderItem={sku => (
+                          <List.Item style={{ display: 'block', marginLeft: 16, padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', width: '100%', marginBottom: expandedSku === sku.code ? 8 : 0 }}>
+                              <div style={{ marginRight: 8, width: 75, height: 75, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #f0f0f0', borderRadius: 2, overflow: 'hidden' }}>
+                                <img
+                                  src={getFullImageUrl(sku.image || item.image || '')}
+                                  alt={sku.code}
+                                  style={{ width: 75, height: 75, objectFit: 'contain', borderRadius: 2, background: '#f5f5f5' }}
+                                />
+                              </div>
+                              <div>
+                                <Tag color="green">{sku.size}</Tag>
+                                <Tag color="blue">{sku.code}</Tag>
+                                <Tag color="orange" style={{ marginTop: 2 }}>{sku.totalQuantity} {sku.unit || '件'}</Tag>
+                              </div>
+                              <Button
+                                size="small"
+                                type={expandedSku === sku.code ? 'primary' : 'default'}
+                                style={{ marginLeft: 'auto' }}
+                                onClick={e => {
+                                  const nextState = expandedSku === sku.code ? null : sku.code;
+                                  setExpandedSku(nextState);
+                                }}
+                              >
+                                {expandedSku === sku.code ? '收起库位' : '库位详情'}
+                              </Button>
+                            </div>
+                            {/* SKU的库位详情 (条件渲染) */}
+                            {expandedSku === sku.code && (
+                              sku.detailsByLocation && sku.detailsByLocation.length > 0 ? (
+                                <List
+                                  size="small"
+                                  dataSource={sku.detailsByLocation}
+                                  header={<div style={{fontWeight: 'bold', paddingLeft: 16}}>库位分布:</div>}
+                                  renderItem={locDetail => (
+                                    <List.Item style={{ paddingLeft: 16, borderBlockStart: 'none' }}>
+                                      <Card size="small" style={{ width: '100%', background: '#fafafa' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                          <div style={{ flexGrow: 1, marginRight: 8 }}>
+                                            <div><strong>{locDetail.locationCode}</strong> ({locDetail.locationName || '-'})</div>
+                                            {editingLocation === locDetail.locationCode && 
+                                             editingSkuContext.skuCode === sku.code && 
+                                             editingSkuContext.productId === item._id ? (
+                                              <InputNumber
+                                                size="small"
+                                                min={0}
+                                                value={editValue}
+                                                onChange={value => setEditValue(value ?? 0)}
+                                                style={{ marginTop: 4, width: '100px' }}
+                                                autoFocus
+                                              />
+                                            ) : (
+                                              <Tag color="purple" style={{ marginTop: 4 }}>数量: {locDetail.quantity} {sku.unit || '件'}</Tag>
+                                            )}
+                                          </div>
+                                          {editingLocation === locDetail.locationCode && 
+                                           editingSkuContext.skuCode === sku.code && 
+                                           editingSkuContext.productId === item._id ? (
+                                            <Space direction="vertical" size={4}>
+                                              <Button
+                                                type="primary"
+                                                size="small"
+                                                icon={<SaveOutlined />}
+                                                onClick={saveLocationQuantity}
+                                                loading={loading}
+                                              >
+                                                保存
+                                              </Button>
+                                              <Button
+                                                size="small"
+                                                onClick={() => {
+                                                  setEditingLocation(null);
+                                                  setEditingSkuContext({ productId: null, skuCode: null });
+                                                }}
+                                              >
+                                                取消
+                                              </Button>
+                                            </Space>
+                                          ) : (
+                                            <Space direction="vertical" size={4}>
+                                              <Button
+                                                icon={<PlusOutlined />}
+                                                size="small"
+                                                type="primary"
+                                                onClick={() => {
+                                                  setCurrentProduct(item);
+                                                  setSelectedSku(sku.code);
+                                                  showInoutModal('in', locDetail.locationCode, locDetail.locationName, locDetail.quantity);
+                                                }}
+                                              >
+                                                入库
+                                              </Button>
+                                              <Button
+                                                icon={<MinusOutlined />}
+                                                size="small"
+                                                danger
+                                                onClick={() => {
+                                                  setCurrentProduct(item);
+                                                  setSelectedSku(sku.code);
+                                                  showInoutModal('out', locDetail.locationCode, locDetail.locationName, locDetail.quantity);
+                                                }}
+                                              >
+                                                出库
+                                              </Button>
+                                              <Button
+                                                icon={<EditOutlined />}
+                                                size="small"
+                                                onClick={() => {
+                                                  startEdit(item._id, locDetail.locationCode, locDetail.quantity, sku.code);
+                                                }}
+                                              >
+                                                盘点
+                                              </Button>
+                                            </Space>
+                                          )}
+                                        </div>
+                                      </Card>
+                                    </List.Item>
+                                  )}
+                                />
+                              ) : (
+                                <div style={{ color: '#888', padding: '8px 0 8px 16px' }}>此SKU无具体库位库存</div>
+                              )
+                            )}
+                          </List.Item>
+                        )}
+                      />
+                    </Collapse.Panel>
+                  </Collapse>
+                ))
+              ) : (
+                <div style={{ padding: '10px 20px', color: '#888' }}>该商品无SKU明细</div>
+              )}
+            </Collapse.Panel>
+          </Collapse>
         )}
       />
       

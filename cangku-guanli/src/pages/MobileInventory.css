@@ -1,0 +1,103 @@
+/* 移动端库存页面样式 */
+.product-list {
+  padding: 8px 16px;
+}
+
+.product-item {
+  padding: 8px 16px;
+  border-bottom: 1px solid #f5f5f5;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.product-item:hover {
+  background-color: #f8f9fa;
+}
+
+.product-info-section {
+  flex: 0 0 120px;
+  min-width: 120px;
+  max-width: 120px;
+}
+
+.product-color-section {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  flex: 1;
+  min-width: 120px;
+  flex-shrink: 1;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.product-color-section::-webkit-scrollbar {
+  display: none;
+}
+
+.product-code {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.product-info {
+  display: flex;
+  gap: 16px;
+  color: #1890ff;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.product-total {
+  color: #1890ff;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.color-quantity-item {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #f5f5f5;
+  flex-shrink: 0;
+}
+
+.color-quantity-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.color-tag {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(0, 0, 0, 0.2);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.color-quantity {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  background: rgba(255, 77, 79, 0.2);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-size: 12px;
+  font-weight: bold;
+} 
