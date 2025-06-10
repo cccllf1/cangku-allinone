@@ -117,7 +117,10 @@ const MobileLocationInventory = () => {
   const [locationCode, setLocationCode] = useState('未指定');
   const [locationStatus, setLocationStatus] = useState('未指定');
   const [quantityRange, setQuantityRange] = useState('未指定');
+  const [quantityRangeMin, setQuantityRangeMin] = useState('');
+  const [quantityRangeMax, setQuantityRangeMax] = useState('');
   const [filterOptionVisible, setFilterOptionVisible] = useState(false);
+  const [quantityRangeInputVisible, setQuantityRangeInputVisible] = useState(false);
   const [currentFilterField, setCurrentFilterField] = useState('');
   const [currentFilterOptions, setCurrentFilterOptions] = useState([]);
   const [currentSortField, setCurrentSortField] = useState(null);
@@ -261,28 +264,22 @@ const MobileLocationInventory = () => {
   const fetchLocations = async () => {
     try {
       setLoading(true);
-      // 只获取库存数据，从中提取库位信息
-      const inventoryRes = await api.get('/inventory/');
+      
+      // 同时获取所有货位和库存数据
+      const [locationsRes, inventoryRes] = await Promise.all([
+        api.get('/locations/'),
+        api.get('/inventory/')
+      ]);
+      
+      const allLocations = locationsRes.data || [];
       const inventory = inventoryRes.data || [];
       
-      // 从库存数据中提取库位列表
-      const locationsList = [];
-      const locationSet = new Set();
-      
-      inventory.forEach(item => {
-        if (item.locations && Array.isArray(item.locations)) {
-          item.locations.forEach(loc => {
-            if (loc.locationCode && !locationSet.has(loc.locationCode)) {
-              locationSet.add(loc.locationCode);
-              locationsList.push({
-                code: loc.locationCode,
-                name: loc.locationName || loc.locationCode,
-                _id: loc.location_id
-              });
-            }
-          });
-        }
-      });
+      // 建立所有货位的列表（包括空货位）
+      const locationsList = allLocations.map(loc => ({
+        code: loc.code,
+        name: loc.name || loc.code,
+        _id: loc._id || loc.id
+      }));
       
       // 暂时跳过商品详情获取，直接使用库存数据中的信息
       const productMap = {};
@@ -375,15 +372,18 @@ const MobileLocationInventory = () => {
       const sortedQuantities = ['未指定', ...Array.from(quantities).sort((a, b) => a - b)];
       setQuantityOptions(sortedQuantities);
 
-      // 合并库位信息
-      const processedLocations = locationsList.map(loc => ({
-        ...loc,
-        skuCount: locationData[loc.code]?.skus.size || 0,
-        productCount: locationData[loc.code]?.products.size || 0,
-        totalQuantity: locationData[loc.code]?.totalQuantity || 0,
-        items: locationData[loc.code]?.items || [],
-        inventoryItems: locationData[loc.code]?.items || [] // 为筛选逻辑添加这个字段
-      }));
+      // 合并库位信息（包括空货位）
+      const processedLocations = locationsList.map(loc => {
+        const locationInfo = locationData[loc.code];
+        return {
+          ...loc,
+          skuCount: locationInfo?.skus.size || 0,
+          productCount: locationInfo?.products.size || 0,
+          totalQuantity: locationInfo?.totalQuantity || 0,
+          items: locationInfo?.items || [],
+          inventoryItems: locationInfo?.items || [] // 为筛选逻辑添加这个字段
+        };
+      });
 
       setLocations(processedLocations);
       setFilteredLocations(processedLocations);
@@ -1143,8 +1143,20 @@ const MobileLocationInventory = () => {
       );
     }
 
-    return baseLocations.map(loc => {
-      if (!loc.inventoryItems) return null;
+    // 按货位状态筛选
+    if (locationStatus !== '未指定') {
+      if (locationStatus === '有货') {
+        baseLocations = baseLocations.filter(loc => loc.totalQuantity > 0);
+      } else if (locationStatus === '无货') {
+        baseLocations = baseLocations.filter(loc => loc.totalQuantity === 0);
+      }
+    }
+
+    const processedLocations = baseLocations.map(loc => {
+      // 如果没有库存项，直接返回货位信息（用于件数区间筛选）
+      if (!loc.inventoryItems || loc.inventoryItems.length === 0) {
+        return loc;
+      }
 
       const filteredInventoryItems = loc.inventoryItems.filter(item => {
         let matchesFilters = true;
@@ -1199,14 +1211,37 @@ const MobileLocationInventory = () => {
         return matchesFilters;
       });
 
-      if (filteredInventoryItems.length === 0) return null;
+      // 如果有商品级别的筛选条件，但没有匹配的商品，则排除此货位
+      const hasProductFilters = fieldFilters.productCode?.length > 0 || 
+                               fieldFilters.color?.length > 0 || 
+                               fieldFilters.sku_size?.length > 0 || 
+                               fieldFilters.quantity?.length > 0 ||
+                               fieldFilters.locationCode?.length > 0;
+      
+      if (hasProductFilters && filteredInventoryItems.length === 0) {
+        return null;
+      }
 
       return {
         ...loc,
         inventoryItems: filteredInventoryItems
       };
     }).filter(Boolean);
-  }, [locations, fieldFilters, searchValue]);
+
+    // 最后按件数区间筛选（基于货位总量）
+    const finalFilteredLocations = processedLocations.filter(loc => {
+      // 按件数区间筛选
+      if (quantityRangeMin !== '' || quantityRangeMax !== '') {
+        const quantity = loc.totalQuantity || 0;
+        const min = quantityRangeMin !== '' ? parseInt(quantityRangeMin) : 0;
+        const max = quantityRangeMax !== '' ? parseInt(quantityRangeMax) : Infinity;
+        return quantity >= min && quantity <= max;
+      }
+      return true;
+    });
+
+    return finalFilteredLocations;
+  }, [locations, fieldFilters, searchValue, locationStatus, quantityRangeMin, quantityRangeMax]);
 
   // 当筛选数据变化时重新应用排序
   useEffect(() => {
@@ -1280,12 +1315,20 @@ const MobileLocationInventory = () => {
     setLocationCode('未指定');
     setLocationStatus('未指定');
     setQuantityRange('未指定');
+    setQuantityRangeMin('');
+    setQuantityRangeMax('');
     setFilterVisible(false);
   };
 
   // 显示筛选选项弹窗
   const showFilterOptions = (field, fieldLabel) => {
     setCurrentFilterField(field);
+    
+    // 如果是件数区间，显示输入界面
+    if (field === 'quantityRange') {
+      setQuantityRangeInputVisible(true);
+      return;
+    }
     
     let options = [];
     switch(field) {
@@ -1306,9 +1349,6 @@ const MobileLocationInventory = () => {
         break;
       case 'locationStatus':
         options = ['有货', '无货'];
-        break;
-      case 'quantityRange':
-        options = ['1-10件', '11-20件', '21-50件', '50件以上'];
         break;
       default:
         options = [];
@@ -2412,6 +2452,64 @@ const MobileLocationInventory = () => {
           <div style={{ fontSize: '12px', color: '#666' }}>
             <div>• 如果商品已存在于此库位，将增加数量</div>
             <div>• 如果商品不存在，将创建新的库存记录</div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 件数区间输入弹窗 */}
+      <Modal
+        title="设置件数区间"
+        open={quantityRangeInputVisible}
+        onCancel={() => setQuantityRangeInputVisible(false)}
+        onOk={() => {
+          // 更新显示文本
+          let rangeText = '未指定';
+          if (quantityRangeMin !== '' || quantityRangeMax !== '') {
+            if (quantityRangeMin !== '' && quantityRangeMax !== '') {
+              rangeText = `${quantityRangeMin}-${quantityRangeMax}件`;
+            } else if (quantityRangeMin !== '') {
+              rangeText = `≥${quantityRangeMin}件`;
+            } else if (quantityRangeMax !== '') {
+              rangeText = `≤${quantityRangeMax}件`;
+            }
+          }
+          setQuantityRange(rangeText);
+          setQuantityRangeInputVisible(false);
+        }}
+        okText="确定"
+        cancelText="取消"
+        centered
+        width={300}
+      >
+        <div style={{ padding: '16px 0' }}>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', marginBottom: 8 }}>
+              最小件数：
+            </label>
+            <InputNumber
+              min={0}
+              value={quantityRangeMin !== '' ? parseInt(quantityRangeMin) : undefined}
+              onChange={(value) => setQuantityRangeMin(value !== null && value !== undefined ? value.toString() : '')}
+              placeholder="不限制"
+              style={{ width: '100%' }}
+            />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', marginBottom: 8 }}>
+              最大件数：
+            </label>
+            <InputNumber
+              min={0}
+              value={quantityRangeMax !== '' ? parseInt(quantityRangeMax) : undefined}
+              onChange={(value) => setQuantityRangeMax(value !== null && value !== undefined ? value.toString() : '')}
+              placeholder="不限制"
+              style={{ width: '100%' }}
+            />
+          </div>
+          <div style={{ fontSize: '12px', color: '#666' }}>
+            <div>• 留空表示不限制</div>
+            <div>• 可以只设置最小值或最大值</div>
+            <div>• 设置范围会筛选货位的总件数</div>
           </div>
         </div>
       </Modal>
