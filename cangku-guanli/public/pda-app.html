@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDA扫码助手</title>
+    <link rel="manifest" href="/pda-manifest.json">
+    <meta name="theme-color" content="#2196F3">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+            background: #f8f9fa;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: white;
+            border-radius: 8px;
+            padding: 30px 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .header h1 {
+            color: #495057;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .header .subtitle {
+            color: #6c757d;
+            font-size: 1.1rem;
+        }
+        
+        .input-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #495057;
+        }
+        
+        #scanInput {
+            width: 100%;
+            height: 120px;
+            padding: 15px;
+            border: 2px solid #28a745;
+            border-radius: 6px;
+            font-size: 16px;
+            resize: vertical;
+            outline: none;
+            font-family: 'Courier New', monospace;
+        }
+        
+        #scanInput:focus {
+            border-color: #20c997;
+            box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.25);
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #218838;
+        }
+        
+        .btn-outline-secondary {
+            background: transparent;
+            color: #6c757d;
+            border: 1px solid #6c757d;
+        }
+        
+        .btn-outline-secondary:hover {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .status-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: 500;
+            margin-bottom: 15px;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.ready {
+            background: #cce5ff;
+            color: #004085;
+            border: 1px solid #99d6ff;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f1b5bb;
+        }
+        
+        .count-display {
+            text-align: center;
+            color: #6c757d;
+            font-weight: 500;
+            margin: 10px 0;
+        }
+        
+        .results-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .results-title {
+            color: #495057;
+            font-size: 1.25rem;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+        
+        .result-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .result-item {
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-left: 4px solid #28a745;
+        }
+        
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .result-id {
+            font-weight: 500;
+            color: #28a745;
+        }
+        
+        .result-time {
+            font-size: 0.875rem;
+            color: #6c757d;
+        }
+        
+        .result-content {
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            color: #495057;
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            word-break: break-all;
+            border: 1px solid #dee2e6;
+        }
+        
+        .empty-state {
+            text-align: center;
+            color: #6c757d;
+            padding: 40px 20px;
+        }
+        
+        .empty-state .icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .btn-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 页面标题 -->
+        <div class="header">
+            <h1>📱 PDA扫码助手</h1>
+            <div class="subtitle">快速扫码，实时同步到移动端</div>
+        </div>
+        
+        <!-- 扫码输入区域 -->
+        <div class="input-section">
+            <div class="form-group">
+                <label for="scanInput">扫码输入区域</label>
+                <textarea id="scanInput" placeholder="将光标保持在此处，使用扫码枪扫描条码。扫码后按回车键自动提交..."></textarea>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="manualSubmit()">
+                    📤 手动提交
+                </button>
+                <button class="btn btn-outline-secondary" onclick="clearInput()">
+                    🗑️ 清空输入
+                </button>
+                <button class="btn btn-outline-secondary" onclick="clearHistory()">
+                    🗂️ 清空历史
+                </button>
+            </div>
+        </div>
+        
+        <!-- 状态显示 -->
+        <div class="status-section">
+            <div class="status ready" id="status">
+                ✅ 系统就绪 - 可以开始扫码
+            </div>
+            <div class="count-display" id="count">
+                共 0 条扫码记录
+            </div>
+        </div>
+        
+        <!-- 扫码结果显示 -->
+        <div class="results-section">
+            <h3 class="results-title">📋 扫码结果接收</h3>
+            <div class="result-list" id="results">
+                <div class="empty-state">
+                    <div class="icon">📱</div>
+                    <div>等待扫码结果...</div>
+                    <small>扫码后结果会在这里显示</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var scanInput = document.getElementById('scanInput');
+        var scanHistory = [];
+        var scanCounter = 1;
+        
+        // 页面加载时自动聚焦
+        window.onload = function() {
+            scanInput.focus();
+            // 开始轮询获取扫码结果
+            startPolling();
+        };
+        
+        // 点击页面任何地方都聚焦到输入框
+        document.addEventListener('click', function() {
+            scanInput.focus();
+        });
+        
+        // 监听键盘输入
+        scanInput.addEventListener('keydown', function(event) {
+            if (event.keyCode === 13) { // 回车键
+                event.preventDefault();
+                submitScan();
+            }
+        });
+        
+        // 提交扫码
+        function submitScan() {
+            var barcode = scanInput.value.trim();
+            if (barcode) {
+                processScan(barcode);
+                clearInput();
+            }
+        }
+        
+        // 手动提交
+        function manualSubmit() {
+            submitScan();
+        }
+        
+        // 清空输入
+        function clearInput() {
+            scanInput.value = '';
+            scanInput.focus();
+        }
+        
+        // 清空历史
+        function clearHistory() {
+            if (confirm('确定要清空所有扫码历史吗？')) {
+                scanHistory = [];
+                scanCounter = 1;
+                updateDisplay();
+                updateStatus('🗑️ 历史记录已清空', 'ready');
+            }
+        }
+        
+        // 处理扫码
+        function processScan(barcode) {
+            console.log('处理扫码：', barcode);
+            
+            // 添加到本地历史
+            var scanRecord = {
+                id: scanCounter++,
+                barcode: barcode,
+                time: new Date().toLocaleString(),
+                status: 'sending'
+            };
+            scanHistory.unshift(scanRecord);
+            updateDisplay();
+            
+            // 发送到服务器
+            sendScanResult(barcode, function(success) {
+                // 更新记录状态
+                scanRecord.status = success ? 'success' : 'error';
+                updateDisplay();
+                
+                if (success) {
+                    updateStatus('✅ 发送成功: ' + barcode, 'success');
+                } else {
+                    updateStatus('❌ 发送失败: ' + barcode, 'error');
+                }
+                
+                // 2秒后恢复默认状态
+                setTimeout(function() {
+                    updateStatus('✅ 系统就绪 - 可以开始扫码', 'ready');
+                }, 2000);
+            });
+        }
+        
+        // 发送扫码结果到服务器
+        function sendScanResult(barcode, callback) {
+            var xhr = new XMLHttpRequest();
+            var url = '/mobile-scanner-result';
+            var params = 'room=DEFAULT&barcode=' + encodeURIComponent(barcode) + '&type=pda-inbound';
+            
+            xhr.open('POST', url, true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    callback(xhr.status === 200);
+                }
+            };
+            
+            xhr.onerror = function() {
+                callback(false);
+            };
+            
+            xhr.send(params);
+        }
+        
+        // 更新状态显示
+        function updateStatus(text, type) {
+            var statusEl = document.getElementById('status');
+            statusEl.textContent = text;
+            statusEl.className = 'status ' + type;
+        }
+        
+        // 更新显示
+        function updateDisplay() {
+            updateCount();
+            updateResults();
+        }
+        
+        // 更新计数
+        function updateCount() {
+            document.getElementById('count').textContent = '共 ' + scanHistory.length + ' 条扫码记录';
+        }
+        
+        // 更新结果列表
+        function updateResults() {
+            var container = document.getElementById('results');
+            
+            if (scanHistory.length === 0) {
+                container.innerHTML = 
+                    '<div class="empty-state">' +
+                        '<div class="icon">📱</div>' +
+                        '<div>等待扫码结果...</div>' +
+                        '<small>扫码后结果会在这里显示</small>' +
+                    '</div>';
+                return;
+            }
+            
+            var html = '';
+            for (var i = 0; i < Math.min(scanHistory.length, 50); i++) {
+                var result = scanHistory[i];
+                var statusIcon = result.status === 'success' ? '✅' : 
+                               result.status === 'error' ? '❌' : '⏳';
+                
+                html += 
+                    '<div class="result-item">' +
+                        '<div class="result-header">' +
+                            '<div class="result-id">' + statusIcon + ' #' + result.id + '</div>' +
+                            '<div class="result-time">' + result.time + '</div>' +
+                        '</div>' +
+                        '<div class="result-content">' + result.barcode + '</div>' +
+                    '</div>';
+            }
+            
+            container.innerHTML = html;
+        }
+        
+        // 开始轮询获取服务器端的扫码结果
+        function startPolling() {
+            setInterval(function() {
+                fetch('/api/scan-results')
+                    .then(function(response) {
+                        return response.json();
+                    })
+                    .then(function(data) {
+                        if (data.results && data.results.length > 0) {
+                            // 这里可以显示其他PDA设备的扫码结果
+                            // 为了避免重复，暂时注释掉
+                            // mergeServerResults(data.results);
+                        }
+                    })
+                    .catch(function(error) {
+                        console.log('获取服务器扫码结果失败:', error);
+                    });
+            }, 3000);
+        }
+    </script>
+</body>
+</html> 

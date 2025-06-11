@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>生成PDA扫码助手图标</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            background: #f5f5f5;
+        }
+        .preview { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin: 20px 0; 
+            text-align: center;
+        }
+        .icon-preview { 
+            margin: 10px; 
+            display: inline-block; 
+            text-align: center;
+        }
+        canvas { 
+            border: 1px solid #ddd; 
+            margin: 5px;
+            background: white;
+        }
+        button {
+            background: #4299e1;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #3182ce;
+        }
+        .size-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎨 PDA扫码助手图标生成器</h1>
+    
+    <div class="preview">
+        <h3>图标预览</h3>
+        
+        <div class="icon-preview">
+            <canvas id="canvas16" width="16" height="16"></canvas>
+            <div class="size-label">16×16</div>
+        </div>
+        
+        <div class="icon-preview">
+            <canvas id="canvas32" width="32" height="32"></canvas>
+            <div class="size-label">32×32</div>
+        </div>
+        
+        <div class="icon-preview">
+            <canvas id="canvas48" width="48" height="48"></canvas>
+            <div class="size-label">48×48</div>
+        </div>
+        
+        <div class="icon-preview">
+            <canvas id="canvas128" width="128" height="128"></canvas>
+            <div class="size-label">128×128</div>
+        </div>
+        
+        <br><br>
+        <button onclick="downloadAllIcons()">📥 下载所有图标</button>
+        <button onclick="generateIcons()">🔄 重新生成</button>
+    </div>
+
+    <script>
+        const svgIcon = `<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+          <!-- 背景渐变 -->
+          <defs>
+            <linearGradient id="bgGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:#4299e1;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#3182ce;stop-opacity:1" />
+            </linearGradient>
+            <linearGradient id="screenGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:#2d3748;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#1a202c;stop-opacity:1" />
+            </linearGradient>
+            <linearGradient id="beamGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:#ff4b4b;stop-opacity:0.8" />
+              <stop offset="100%" style="stop-color:#ff4b4b;stop-opacity:0" />
+            </linearGradient>
+          </defs>
+          
+          <!-- 圆角背景 -->
+          <rect width="128" height="128" rx="20" ry="20" fill="url(#bgGradient)"/>
+          
+          <!-- PDA设备主体 -->
+          <rect x="36" y="20" width="56" height="76" rx="6" ry="6" fill="#ffffff"/>
+          
+          <!-- PDA屏幕 -->
+          <rect x="42" y="28" width="44" height="28" rx="3" ry="3" fill="url(#screenGradient)"/>
+          
+          <!-- 屏幕上的条码显示 -->
+          <rect x="46" y="34" width="4" height="16" fill="#48bb78"/>
+          <rect x="52" y="34" width="2" height="16" fill="#48bb78"/>
+          <rect x="56" y="34" width="6" height="16" fill="#48bb78"/>
+          <rect x="64" y="34" width="3" height="16" fill="#48bb78"/>
+          <rect x="69" y="34" width="5" height="16" fill="#48bb78"/>
+          <rect x="76" y="34" width="4" height="16" fill="#48bb78"/>
+          
+          <!-- PDA按键区域 -->
+          <circle cx="46" cy="66" r="3" fill="#e2e8f0"/>
+          <circle cx="56" cy="66" r="3" fill="#e2e8f0"/>
+          <circle cx="66" cy="66" r="3" fill="#e2e8f0"/>
+          <circle cx="76" cy="66" r="3" fill="#e2e8f0"/>
+          
+          <circle cx="46" cy="76" r="3" fill="#e2e8f0"/>
+          <circle cx="56" cy="76" r="3" fill="#e2e8f0"/>
+          <circle cx="66" cy="76" r="3" fill="#e2e8f0"/>
+          <circle cx="76" cy="76" r="3" fill="#e2e8f0"/>
+          
+          <circle cx="46" cy="86" r="3" fill="#e2e8f0"/>
+          <circle cx="56" cy="86" r="3" fill="#e2e8f0"/>
+          <circle cx="66" cy="86" r="3" fill="#e2e8f0"/>
+          <circle cx="76" cy="86" r="3" fill="#e2e8f0"/>
+          
+          <!-- 扫码激光束 -->
+          <rect x="58" y="96" width="12" height="20" fill="url(#beamGradient)"/>
+          
+          <!-- 装饰性WiFi信号图标 -->
+          <path d="M 96 24 Q 108 24 108 36 Q 108 48 96 48" stroke="#ffffff" stroke-width="2" fill="none" opacity="0.6"/>
+          <path d="M 100 28 Q 104 28 104 32 Q 104 36 100 36" stroke="#ffffff" stroke-width="2" fill="none" opacity="0.8"/>
+          <circle cx="102" cy="40" r="1.5" fill="#ffffff" opacity="0.9"/>
+          
+          <!-- 数据传输箭头 -->
+          <path d="M 20 36 L 28 32 L 28 40 Z" fill="#ffffff" opacity="0.7"/>
+          <path d="M 32 40 L 24 44 L 24 36 Z" fill="#ffffff" opacity="0.7"/>
+        </svg>`;
+
+        function svgToCanvas(svgString, canvas, size) {
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            const blob = new Blob([svgString], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            
+            img.onload = function() {
+                ctx.clearRect(0, 0, size, size);
+                ctx.drawImage(img, 0, 0, size, size);
+                URL.revokeObjectURL(url);
+            };
+            
+            img.src = url;
+        }
+
+        function generateIcons() {
+            const sizes = [16, 32, 48, 128];
+            
+            sizes.forEach(size => {
+                const canvas = document.getElementById(`canvas${size}`);
+                const scaledSvg = svgIcon.replace('width="128" height="128"', `width="${size}" height="${size}"`);
+                svgToCanvas(scaledSvg, canvas, size);
+            });
+        }
+
+        function downloadCanvas(canvas, filename) {
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        function downloadAllIcons() {
+            const sizes = [16, 32, 48, 128];
+            
+            sizes.forEach(size => {
+                const canvas = document.getElementById(`canvas${size}`);
+                downloadCanvas(canvas, `icon${size}.png`);
+            });
+            
+            alert('🎉 所有图标已下载完成！\n请将下载的图标文件放入 chrome-extension/icons/ 目录');
+        }
+
+        // 页面加载时生成图标
+        window.onload = function() {
+            setTimeout(generateIcons, 100);
+        };
+    </script>
+</body>
+</html> 

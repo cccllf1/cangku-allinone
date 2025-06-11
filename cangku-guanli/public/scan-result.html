@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>扫码结果接收</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        
+        .result-list {
+            margin-top: 20px;
+        }
+        
+        .result-item {
+            background: #E8F5E8;
+            border: 1px solid #4CAF50;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            word-break: break-all;
+        }
+        
+        .time {
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 扫码结果接收</h1>
+        
+        <div class="input-box">
+            <textarea id="resultInput" placeholder="等待PDA扫码结果..."></textarea>
+        </div>
+        
+        <div class="status" id="status">
+            🟡 等待PDA扫码...
+        </div>
+        
+        <div style="text-align: center; margin: 10px 0; font-weight: bold; color: #666;" id="count">
+            共 0 条扫码记录
+        </div>
+        
+        <div class="result-list" id="results">
+            <!-- 扫码结果会在这里显示 -->
+        </div>
+    </div>
+
+    <script>
+        // 每2秒检查一次新的扫码结果
+        setInterval(function() {
+            fetch('/api/scan-results')
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(data) {
+                    if (data.results && data.results.length > 0) {
+                        updateResults(data.results);
+                        document.getElementById('status').textContent = '✅ 已接收到扫码数据';
+                    }
+                })
+                .catch(function(error) {
+                    console.log('获取扫码结果失败:', error);
+                });
+        }, 2000);
+        
+        function updateResults(results) {
+            var container = document.getElementById('results');
+            container.innerHTML = '';
+            
+            // 显示最近50条结果
+            results.slice(-50).reverse().forEach(function(result) {
+                var div = document.createElement('div');
+                div.className = 'result-item';
+                div.innerHTML = 
+                    '<strong>' + result.barcode + '</strong><br>' +
+                    '<span class="time">' + result.time + '</span>';
+                container.appendChild(div);
+            });
+        }
+    </script>
+</body>
+</html> 

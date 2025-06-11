@@ -594,8 +594,8 @@ const MobileInventory = () => {
         setSelectedLocation(null); // 清除选中的库位
       
         // 重新加载库存数据并更新当前商品
-        await loadInventory();
-        
+      await loadInventory();
+      
         // 等待数据更新后，重新获取当前商品的最新信息
         setTimeout(async () => {
           try {
@@ -656,7 +656,7 @@ const MobileInventory = () => {
                             quantity: skuInLocation.quantity
                           });
                           if (!existingSku.image && skuImage) existingSku.image = skuImage;
-                        } else {
+          } else {
                           allSkusMap.set(skuInLocation.code, {
                             code: skuInLocation.code,
                             color: skuInLocation.color,
@@ -688,10 +688,10 @@ const MobileInventory = () => {
               };
               
               setCurrentProduct(processedProduct);
-            }
+        }
           } catch (error) {
             console.error('更新商品详情失败:', error);
-          }
+        }
         }, 500);
       } catch (error) {
         console.error('API调用失败:', error);
@@ -1441,7 +1441,7 @@ const MobileInventory = () => {
           onClick={() => handleSort('skuCount')}
         >
           SKU数 {getSortIcon('skuCount')}
-        </span>
+                          </span>
         <span 
           className={`sort-header ${currentSortField === 'locationCount' ? 'active' : ''}`}
           onClick={() => handleSort('locationCount')}
@@ -1451,15 +1451,15 @@ const MobileInventory = () => {
         <span 
           className={`sort-header ${currentSortField === 'quantity' ? 'active' : ''}`}
           onClick={() => handleSort('quantity')}
-        >
+                              >
           总数量 {getSortIcon('quantity')}
         </span>
-      </div>
+                            </div>
       
 
 
       {/* 商品列表 */}
-      <List
+                                <List
         loading={loading}
         dataSource={currentSortField ? sortedItems : (
           // 优先使用筛选后的数据，如果没有筛选条件则使用搜索后的数据
@@ -1477,7 +1477,7 @@ const MobileInventory = () => {
               <div className="location-info">
                 <span>{item.skuList ? item.skuList.length : 0}款式</span>
                 <span>{item.locations ? item.locations.length : 0}库位</span>
-              </div>
+                                          </div>
               <div className="location-total">合计{item.quantity || 0}{item.unit || '件'}</div>
             </div>
             {item.skuList && item.skuList.length > 0 && (
@@ -1514,8 +1514,8 @@ const MobileInventory = () => {
                               justifyContent: 'center',
                               backgroundColor: '#f5f5f5',
                               position: 'relative'
-                            }}
-                          >
+                                                }}
+                                              >
                             {imagePath ? (
                               <img 
                                 src={getFullImageUrl(imagePath)} 
@@ -1558,8 +1558,8 @@ const MobileInventory = () => {
                     });
                 })()}
               </div>
-            )}
-          </div>
+                                          )}
+                                        </div>
         )}
       />
       
@@ -1614,17 +1614,17 @@ const MobileInventory = () => {
                     {/* 颜色图片 */}
                     <div style={{ flexShrink: 0 }}>
                       {colorImage && getFullImageUrl(colorImage) ? (
-                        <img 
+                <img 
                           src={getFullImageUrl(colorImage)} 
                           alt={color}
                           style={{ width: 120, height: 120, objectFit: 'contain', border: '1px solid #f0f0f0', borderRadius: 4 }}
-                        />
-                      ) : (
+                />
+              ) : (
                         <div style={{ width: 120, height: 120, background: '#f5f5f5', border: '1px solid #f0f0f0', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
                           无图片
                         </div>
-                      )}
-                    </div>
+              )}
+              </div>
                     
                                          {/* 尺码列表 */}
                      <div style={{ flex: 1 }}>
@@ -1663,8 +1663,8 @@ const MobileInventory = () => {
                                    <span style={{ color: '#666', fontSize: '10px' }}>
                                      {isSkuExpanded ? '▼' : '▶'}
                                    </span>
-                                 </div>
-                                 
+            </div>
+            
                                  {/* 展开显示库位明细 */}
                                  {isSkuExpanded && sku.detailsByLocation && (
                                    <div style={{ 

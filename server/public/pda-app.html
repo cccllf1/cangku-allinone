@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDA扫码助手</title>
+    <link rel="manifest" href="/pda-manifest.json">
+    <meta name="theme-color" content="#2196F3">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            background-attachment: fixed;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+
+        
+        .input-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 25px;
+            padding: 30px;
+            margin-bottom: 25px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 1.1rem;
+        }
+        
+        #scanInput {
+            width: 100%;
+            height: 140px;
+            padding: 20px;
+            border: 3px solid transparent;
+            border-radius: 15px;
+            font-size: 18px;
+            resize: vertical;
+            outline: none;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+            background: linear-gradient(white, white) padding-box,
+                       linear-gradient(135deg, #667eea, #764ba2) border-box;
+            transition: all 0.3s ease;
+        }
+        
+        #scanInput:focus {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 25px;
+        }
+        
+        .btn {
+            padding: 15px 25px;
+            border: none;
+            border-radius: 15px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s;
+        }
+        
+        .btn:hover::before {
+            left: 100%;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+            box-shadow: 0 10px 25px rgba(72, 187, 120, 0.4);
+        }
+        
+        .btn-success:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(72, 187, 120, 0.6);
+        }
+        
+        .btn-outline-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #2d3748;
+            border: 2px solid rgba(45, 55, 72, 0.2);
+            backdrop-filter: blur(10px);
+        }
+        
+        .btn-outline-secondary:hover {
+            background: rgba(45, 55, 72, 0.1);
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(45, 55, 72, 0.2);
+        }
+        
+
+        
+        .results-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 25px;
+            padding: 30px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .results-title {
+            color: #2d3748;
+            font-size: 1.5rem;
+            margin: 0;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            flex: 1;
+        }
+        
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .btn-outline-danger {
+            background: rgba(245, 101, 101, 0.1);
+            color: #e53e3e;
+            border: 2px solid rgba(229, 62, 62, 0.3);
+            backdrop-filter: blur(10px);
+        }
+        
+        .btn-outline-danger:hover {
+            background: rgba(229, 62, 62, 0.15);
+            border-color: rgba(229, 62, 62, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(229, 62, 62, 0.3);
+        }
+        
+        .result-list {
+            padding-right: 0;
+        }
+        
+        .result-item {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 20px;
+        }
+        
+
+        
+
+        
+        .result-item.server-item .result-content {
+            background: linear-gradient(135deg, #f0fff4, #e6fffa);
+        }
+        
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 0 5px;
+        }
+        
+        .result-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .batch-copy-btn {
+            padding: 4px 8px;
+            background: linear-gradient(135deg, #4299e1, #3182ce);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .batch-copy-btn:hover {
+            background: linear-gradient(135deg, #3182ce, #2c5aa0);
+            transform: translateY(-1px);
+        }
+        
+        .batch-copy-feedback {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(66, 153, 225, 0.95);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+            z-index: 1000;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+        
+        .result-id {
+            font-weight: 700;
+            color: #2d3748;
+            font-size: 1.1rem;
+        }
+        
+        .result-time {
+            font-size: 0.9rem;
+            color: #718096;
+            font-weight: 500;
+        }
+        
+        .result-content {
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+            font-size: 16px;
+            color: #2d3748;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 15px;
+            word-break: break-all;
+            border: 1px solid rgba(0,0,0,0.1);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: all;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+        
+        .result-content:hover {
+            background: rgba(255, 255, 255, 0.95);
+            border-color: rgba(102, 126, 234, 0.5);
+            transform: scale(1.02);
+        }
+        
+        .content-with-hint {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .barcode-text {
+            flex: 1;
+            word-break: break-all;
+        }
+        
+        .copy-hint {
+            font-size: 12px;
+            color: #718096;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            flex-shrink: 0;
+        }
+        
+        .result-content:hover .copy-hint {
+            opacity: 1;
+        }
+        
+        .copy-feedback {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(72, 187, 120, 0.9);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            z-index: 10;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        
+        .empty-state {
+            text-align: center;
+            color: #718096;
+            padding: 60px 30px;
+            background: linear-gradient(135deg, #f7fafc, #edf2f7);
+            border-radius: 20px;
+            margin: 20px 0;
+        }
+        
+        .empty-state .icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        .empty-state div:not(.icon) {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .empty-state small {
+            font-size: 1rem;
+            opacity: 0.8;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+
+            
+            .btn-group {
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+            }
+            
+            .btn {
+                padding: 12px 8px;
+                font-size: 13px;
+                min-width: 0;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            
+            .input-section, .results-section {
+                padding: 20px;
+                margin-bottom: 20px;
+            }
+            
+            #scanInput {
+                height: 120px;
+                padding: 15px;
+                font-size: 16px;
+            }
+            
+            .results-header {
+                flex-direction: row;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .results-title {
+                font-size: 1.2rem;
+                flex: 1;
+                min-width: 0;
+            }
+            
+            .btn-sm {
+                padding: 6px 12px;
+                font-size: 12px;
+                flex-shrink: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        
+        <!-- 扫码输入区域 -->
+        <div class="input-section">
+            <div class="form-group">
+                <label for="scanInput">扫码输入区域</label>
+                <textarea id="scanInput" placeholder="将光标保持在此处，使用扫码枪扫描条码。扫码后按回车键自动提交..."></textarea>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="manualSubmit()">
+                    📤 手动提交
+                </button>
+                <button class="btn btn-outline-secondary" onclick="clearInput()">
+                    🗑️ 清空输入
+                </button>
+            </div>
+        </div>
+        
+
+        
+        <!-- 扫码结果显示 -->
+        <div class="results-section">
+            <div class="results-header">
+                <h3 class="results-title" id="results-title">📋 扫码结果接收</h3>
+                <button class="btn btn-outline-danger btn-sm" onclick="clearHistory()">
+                    🗑️ 清空历史
+                </button>
+            </div>
+            <div class="result-list" id="results">
+                <div class="empty-state">
+                    <div class="icon">📱</div>
+                    <div>等待扫码结果...</div>
+                    <small>扫码后结果会在这里显示</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var scanInput = document.getElementById('scanInput');
+        var scanHistory = [];
+        var scanCounter = 1;
+        
+        // 页面加载时自动聚焦
+        window.onload = function() {
+            scanInput.focus();
+            // 开始轮询获取扫码结果
+            startPolling();
+        };
+        
+        // 点击页面任何地方都聚焦到输入框（除了复制区域）
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.result-content') && !event.target.closest('.btn')) {
+                scanInput.focus();
+            }
+        });
+        
+        // 监听键盘输入
+        scanInput.addEventListener('keydown', function(event) {
+            if (event.keyCode === 13) { // 回车键
+                event.preventDefault();
+                submitScan();
+            }
+        });
+        
+        // 提交扫码
+        function submitScan() {
+            var barcode = scanInput.value.trim();
+            if (barcode) {
+                processScan(barcode);
+                clearInput();
+            }
+        }
+        
+        // 手动提交
+        function manualSubmit() {
+            submitScan();
+        }
+        
+        // 清空输入
+        function clearInput() {
+            scanInput.value = '';
+            scanInput.focus();
+        }
+        
+        // 清空历史
+        function clearHistory() {
+            // 只清空服务器记录
+            clearServerHistory();
+        }
+        
+        // 清空服务器端的扫码记录
+        function clearServerHistory() {
+            var xhr = new XMLHttpRequest();
+            var url = '/api/clear-scan-results';
+            
+            xhr.open('POST', url, true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        console.log('服务器记录清空成功');
+                        scanHistory = [];
+                        updateDisplay();
+                        // 立即从服务器获取最新数据
+                        fetchServerResults();
+                    } else {
+                        console.log('服务器记录清空失败');
+                    }
+                }
+            };
+            
+            xhr.onerror = function() {
+                console.log('清空服务器记录请求失败');
+            };
+            
+            xhr.send('room=DEFAULT');
+        }
+        
+
+        
+        // 测试连接
+        function testConnection() {
+            sendScanResult('TEST123', function(success) {
+                if (success) {
+                    updateStatus('✅ 连接测试成功！', 'success');
+                } else {
+                    updateStatus('❌ 连接失败，请检查网络', 'error');
+                }
+                
+                // 2秒后恢复默认状态
+                setTimeout(function() {
+                    updateStatus('✅ 系统就绪 - 可以开始扫码', 'ready');
+                }, 2000);
+            });
+        }
+        
+        // 处理扫码
+        function processScan(barcode) {
+            console.log('处理扫码：', barcode);
+            
+            // 直接发送到服务器，不在本地记录
+            sendScanResult(barcode, function(success) {
+                if (success) {
+                    console.log('扫码发送成功:', barcode);
+                    // 立即刷新显示，从服务器获取最新数据
+                    fetchServerResults();
+                } else {
+                    console.log('扫码发送失败:', barcode);
+                }
+            });
+        }
+        
+        // 发送扫码结果到服务器
+        function sendScanResult(barcode, callback) {
+            var xhr = new XMLHttpRequest();
+            var url = '/mobile-scanner-result';
+            var params = 'room=DEFAULT&barcode=' + encodeURIComponent(barcode) + '&type=pda-inbound';
+            
+            xhr.open('POST', url, true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    callback(xhr.status === 200);
+                }
+            };
+            
+            xhr.onerror = function() {
+                callback(false);
+            };
+            
+            xhr.send(params);
+        }
+        
+
+        
+        // 批量复制功能
+        function copyBatchResults(toId) {
+            // 获取从#1到#toId的所有记录，按编号排序
+            var batchResults = [];
+            
+            for (var id = 1; id <= toId; id++) {
+                for (var i = 0; i < scanHistory.length; i++) {
+                    if (scanHistory[i].id === id) {
+                        batchResults.push(scanHistory[i].barcode);
+                        break;
+                    }
+                }
+            }
+            
+            var batchText = batchResults.join('\n');
+            
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(batchText).then(function() {
+                    showBatchCopyFeedback(toId, batchResults.length);
+                }).catch(function() {
+                    fallbackBatchCopy(batchText, toId, batchResults.length);
+                });
+            } else {
+                fallbackBatchCopy(batchText, toId, batchResults.length);
+            }
+        }
+        
+        // 后备批量复制方法
+        function fallbackBatchCopy(text, toId, count) {
+            var textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.opacity = '0';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                showBatchCopyFeedback(toId, count);
+            } catch (err) {
+                alert('批量复制失败');
+            }
+            
+            document.body.removeChild(textArea);
+        }
+        
+        // 显示批量复制反馈
+        function showBatchCopyFeedback(toId, count) {
+            var feedback = document.createElement('div');
+            feedback.className = 'batch-copy-feedback';
+            feedback.textContent = '已复制 #1-#' + toId + ' 共' + count + '条记录';
+            
+            document.body.appendChild(feedback);
+            
+            setTimeout(function() {
+                feedback.style.opacity = '0';
+                setTimeout(function() {
+                    if (feedback.parentNode) {
+                        feedback.parentNode.removeChild(feedback);
+                    }
+                }, 300);
+            }, 2000);
+        }
+        
+        // 复制文本到剪贴板
+        function copyToClipboard(text, element) {
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(function() {
+                    showCopyFeedback(element, '已复制');
+                }).catch(function() {
+                    fallbackCopy(text, element);
+                });
+            } else {
+                fallbackCopy(text, element);
+            }
+        }
+        
+        // 后备复制方法
+        function fallbackCopy(text, element) {
+            var textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.opacity = '0';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                showCopyFeedback(element, '已复制');
+            } catch (err) {
+                showCopyFeedback(element, '复制失败');
+            }
+            
+            document.body.removeChild(textArea);
+        }
+        
+        // 显示复制反馈
+        function showCopyFeedback(element, message) {
+            var feedback = element.querySelector('.copy-feedback') || document.createElement('div');
+            feedback.className = 'copy-feedback';
+            feedback.textContent = message;
+            
+            if (!element.querySelector('.copy-feedback')) {
+                element.appendChild(feedback);
+            }
+            
+            feedback.style.opacity = '1';
+            
+            setTimeout(function() {
+                feedback.style.opacity = '0';
+                setTimeout(function() {
+                    if (feedback.parentNode) {
+                        feedback.parentNode.removeChild(feedback);
+                    }
+                }, 300);
+            }, 1500);
+        }
+        
+        // 更新显示
+        function updateDisplay() {
+            updateResults();
+        }
+        
+        // 更新结果列表
+        function updateResults() {
+            var container = document.getElementById('results');
+            var titleEl = document.getElementById('results-title');
+            
+            // 更新标题显示记录数量
+            titleEl.textContent = '📋 扫码结果接收 (共 ' + scanHistory.length + ' 条)';
+            
+            if (scanHistory.length === 0) {
+                container.innerHTML = 
+                    '<div class="empty-state">' +
+                        '<div class="icon">📱</div>' +
+                        '<div>等待扫码结果...</div>' +
+                        '<small>扫码后结果会在这里显示</small>' +
+                    '</div>';
+                return;
+            }
+            
+            var html = '';
+            for (var i = 0; i < Math.min(scanHistory.length, 50); i++) {
+                var result = scanHistory[i];
+                var statusIcon = result.status === 'success' ? '✅' : 
+                               result.status === 'error' ? '❌' : 
+                               result.status === 'server' ? '🌐' : '⏳';
+                
+                var itemClass = result.isServer ? 'result-item server-item' : 'result-item';
+                
+                html += 
+                    '<div class="' + itemClass + '">' +
+                        '<div class="result-header">' +
+                            '<div class="result-id">' + statusIcon + ' #' + result.id + '</div>' +
+                            '<div class="result-actions">' +
+                                '<button class="batch-copy-btn" onclick="copyBatchResults(' + result.id + ')" title="复制#1到#' + result.id + '的所有内容">' +
+                                    '📋 批量复制' +
+                                '</button>' +
+                                '<div class="result-time">' + result.time + '</div>' +
+                            '</div>' +
+                        '</div>' +
+                        '<div class="result-content" onclick="copyToClipboard(\'' + result.barcode.replace(/'/g, "\\'") + '\', this)" title="点击复制">' + 
+                            '<div class="content-with-hint">' +
+                                '<span class="barcode-text">' + result.barcode + '</span>' +
+                                '<span class="copy-hint">📋 点击复制</span>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>';
+            }
+            
+            container.innerHTML = html;
+        }
+        
+        // 获取服务器端的扫码结果
+        function fetchServerResults() {
+            fetch('/api/scan-results')
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(data) {
+                    if (data.results) {
+                        updateServerResults(data.results);
+                    }
+                })
+                .catch(function(error) {
+                    console.log('获取服务器扫码结果失败:', error);
+                });
+        }
+        
+        // 开始轮询获取服务器端的扫码结果
+        function startPolling() {
+            // 立即获取一次
+            fetchServerResults();
+            // 每5秒轮询一次
+            setInterval(fetchServerResults, 5000);
+        }
+        
+        // 更新服务器端的扫码结果显示
+        function updateServerResults(serverResults) {
+            scanHistory = [];
+            
+            // 按时间排序，最新的在前面
+            serverResults.sort(function(a, b) {
+                return new Date(b.time).getTime() - new Date(a.time).getTime();
+            });
+            
+            for (var i = 0; i < serverResults.length; i++) {
+                var serverResult = serverResults[i];
+                scanHistory.push({
+                    id: serverResults.length - i,  // 最新的记录编号最大
+                    barcode: serverResult.barcode,
+                    time: serverResult.time,
+                    status: 'server',
+                    isServer: true
+                });
+            }
+            
+            updateDisplay();
+        }
+        
+        // 注册Service Worker（PWA功能）
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/pda-sw.js').catch(function() {
+                // Ignore SW registration errors
+            });
+        }
+    </script>
+</body>
+</html> 
+</html> 

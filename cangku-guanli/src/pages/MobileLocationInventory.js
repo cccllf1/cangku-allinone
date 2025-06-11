@@ -376,7 +376,7 @@ const MobileLocationInventory = () => {
       const processedLocations = locationsList.map(loc => {
         const locationInfo = locationData[loc.code];
         return {
-          ...loc,
+        ...loc,
           skuCount: locationInfo?.skus.size || 0,
           productCount: locationInfo?.products.size || 0,
           totalQuantity: locationInfo?.totalQuantity || 0,
@@ -1364,8 +1364,8 @@ const MobileLocationInventory = () => {
     setFieldFilters(prevFilters => {
       const newFilters = { ...prevFilters };
       
-      switch(currentFilterField) {
-        case 'productCode':
+    switch(currentFilterField) {
+      case 'productCode':
           // 如果选项已存在则移除，否则添加（支持多选）
           if (newFilters.productCode.includes(option)) {
             newFilters.productCode = newFilters.productCode.filter(item => item !== option);
@@ -1373,46 +1373,46 @@ const MobileLocationInventory = () => {
             newFilters.productCode = [...newFilters.productCode, option];
           }
           setProductCode(newFilters.productCode.length > 0 ? newFilters.productCode.join(', ') : '未指定');
-          break;
-        case 'color':
+        break;
+      case 'color':
           if (newFilters.color.includes(option)) {
             newFilters.color = newFilters.color.filter(item => item !== option);
           } else {
             newFilters.color = [...newFilters.color, option];
           }
           setColor(newFilters.color.length > 0 ? newFilters.color.join(', ') : '未指定');
-          break;
-        case 'size':
+        break;
+      case 'size':
           if (newFilters.sku_size.includes(option)) {
             newFilters.sku_size = newFilters.sku_size.filter(item => item !== option);
           } else {
             newFilters.sku_size = [...newFilters.sku_size, option];
           }
           setSize(newFilters.sku_size.length > 0 ? newFilters.sku_size.join(', ') : '未指定');
-          break;
-        case 'quantity':
+        break;
+      case 'quantity':
           if (newFilters.quantity.includes(option)) {
             newFilters.quantity = newFilters.quantity.filter(item => item !== option);
           } else {
             newFilters.quantity = [...newFilters.quantity, option];
           }
           setQuantity(newFilters.quantity.length > 0 ? newFilters.quantity.join(', ') : '未指定');
-          break;
-        case 'locationCode':
+        break;
+      case 'locationCode':
           if (newFilters.locationCode.includes(option)) {
             newFilters.locationCode = newFilters.locationCode.filter(item => item !== option);
           } else {
             newFilters.locationCode = [...newFilters.locationCode, option];
           }
           setLocationCode(newFilters.locationCode.length > 0 ? newFilters.locationCode.join(', ') : '未指定');
-          break;
-        case 'locationStatus':
-          setLocationStatus(option);
-          break;
-        case 'quantityRange':
-          setQuantityRange(option);
-          break;
-      }
+        break;
+      case 'locationStatus':
+        setLocationStatus(option);
+        break;
+      case 'quantityRange':
+        setQuantityRange(option);
+        break;
+    }
       
       return newFilters;
     });
@@ -1599,90 +1599,90 @@ const MobileLocationInventory = () => {
             
             return (
               <div key={loc.code} className={`location-item ${isEmpty ? 'empty-location' : ''}`} onClick={() => showLocationDetail(loc)}>
-                <div className="location-info-section">
-                  <div className="location-code">{loc.code}</div>
+              <div className="location-info-section">
+                <div className="location-code">{loc.code}</div>
                   {!isEmpty && (
                     <>
-                      <div className="location-info">
-                        <span>{loc.productCount}种商品</span>
-                        <span>{loc.skuCount}个SKU</span>
-                      </div>
-                      <div className="location-total">合计{loc.totalQuantity}件</div>
+                <div className="location-info">
+                  <span>{loc.productCount}种商品</span>
+                  <span>{loc.skuCount}个SKU</span>
+                </div>
+                <div className="location-total">合计{loc.totalQuantity}件</div>
                     </>
                   )}
-                </div>
-                {loc.inventoryItems && loc.inventoryItems.length > 0 && (
-                  <div className="location-images-section">
-                    {loc.inventoryItems
-                      .sort((a, b) => (a.quantity || 0) - (b.quantity || 0)) // 按数量升序排列，数量少的在左边，数量多的在右边
-                      .map((item, index) => {
-                      // 生成图片URL - 使用SKU code或者产品code
-                      const imageCode = item.sku_code || item.code || item.productCode || '129092';
-                      const imagePath = item.image || item.skuImage || item.image_path;
-                      
-                      // 提取尺码信息
-                      const size = item.sku_size || item.size || 
-                        (item.sku_code ? safeSplit(item.sku_code, '-')[2] : '') || 'M';
-                      
-                      return (
-                        <div key={`${item.sku_code || item.code || index}`} className="sku-item">
+              </div>
+              {loc.inventoryItems && loc.inventoryItems.length > 0 && (
+                <div className="location-images-section">
+                  {loc.inventoryItems
+                    .sort((a, b) => (a.quantity || 0) - (b.quantity || 0)) // 按数量升序排列，数量少的在左边，数量多的在右边
+                    .map((item, index) => {
+                    // 生成图片URL - 使用SKU code或者产品code
+                    const imageCode = item.sku_code || item.code || item.productCode || '129092';
+                    const imagePath = item.image || item.skuImage || item.image_path;
+                    
+                    // 提取尺码信息
+                    const size = item.sku_size || item.size || 
+                      (item.sku_code ? safeSplit(item.sku_code, '-')[2] : '') || 'M';
+                    
+                    return (
+                      <div key={`${item.sku_code || item.code || index}`} className="sku-item">
+                        <div 
+                          style={{ 
+                            width: '100%', 
+                            height: '100%', 
+                            border: '1px solid #ddd',
+                            borderRadius: 4,
+                            overflow: 'hidden',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: '#f5f5f5',
+                            position: 'relative'
+                          }}
+                        >
+                          {imagePath ? (
+                            <img 
+                              src={getFullImageUrl(imagePath)} 
+                              alt={item.sku_code || item.code}
+                              style={{ 
+                                width: '100%', 
+                                height: '100%', 
+                                objectFit: 'contain'
+                              }}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
                           <div 
                             style={{ 
                               width: '100%', 
                               height: '100%', 
-                              border: '1px solid #ddd',
-                              borderRadius: 4,
-                              overflow: 'hidden',
-                              display: 'flex',
+                              backgroundColor: '#f0f0f0',
+                              display: imagePath ? 'none' : 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              backgroundColor: '#f5f5f5',
-                              position: 'relative'
+                              fontSize: '10px',
+                              color: '#666',
+                              textAlign: 'center',
+                              lineHeight: '12px',
+                              position: 'absolute',
+                              top: 0,
+                              left: 0
                             }}
                           >
-                            {imagePath ? (
-                              <img 
-                                src={getFullImageUrl(imagePath)} 
-                                alt={item.sku_code || item.code}
-                                style={{ 
-                                  width: '100%', 
-                                  height: '100%', 
-                                  objectFit: 'contain'
-                                }}
-                                onError={(e) => {
-                                  e.target.style.display = 'none';
-                                  e.target.nextSibling.style.display = 'flex';
-                                }}
-                              />
-                            ) : null}
-                            <div 
-                              style={{ 
-                                width: '100%', 
-                                height: '100%', 
-                                backgroundColor: '#f0f0f0',
-                                display: imagePath ? 'none' : 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '10px',
-                                color: '#666',
-                                textAlign: 'center',
-                                lineHeight: '12px',
-                                position: 'absolute',
-                                top: 0,
-                                left: 0
-                              }}
-                            >
-                              {imagePath ? '无图' : imageCode.substring(0, 6)}
-                            </div>
+                            {imagePath ? '无图' : imageCode.substring(0, 6)}
                           </div>
-                          <div className="sku-size-tag">{size}</div>
-                          <div className="sku-quantity">{item.quantity || 0}</div>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                        <div className="sku-size-tag">{size}</div>
+                        <div className="sku-quantity">{item.quantity || 0}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             );
           })
         ) : (
@@ -1815,9 +1815,9 @@ const MobileLocationInventory = () => {
                     color: isSelected ? '#fff' : '#000'
                   }}
                 >
-                  <span>{option}</span>
+                <span>{option}</span>
                   {isSelected && <span style={{ marginLeft: '8px' }}>✓</span>}
-                </div>
+              </div>
               );
             })}
           </div>

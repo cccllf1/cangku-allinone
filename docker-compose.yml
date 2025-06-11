@@ -42,3 +42,4 @@ services:
       - backend
     volumes:
       - ./cangku-guanli/build:/usr/share/nginx/html
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf

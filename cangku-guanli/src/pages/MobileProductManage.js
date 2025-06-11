@@ -1228,7 +1228,7 @@ const MobileProductManage = () => {
                   title={
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <span style={{ fontWeight: 'bold', fontSize: 16 }}>
-                        {group.color}
+                      {group.color}
                       </span>
                       <span style={{ color: '#52c41a', fontWeight: 500, fontSize: 14 }}>
                         总库存: {
@@ -1237,7 +1237,7 @@ const MobileProductManage = () => {
                       </span>
                       <span style={{ fontSize: 14, fontWeight: 400, color: '#666' }}>
                         尺码列表:
-                      </span>
+                    </span>
                     </div>
                   }
                   style={{ marginBottom: 16 }}

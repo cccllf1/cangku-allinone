@@ -9,6 +9,8 @@ import MobileOutbound from './pages/MobileOutbound';
 import MobileProductManage from './pages/MobileProductManage';
 import MobileExternalCodes from './pages/MobileExternalCodes';
 import MobileLocationInventory from './pages/MobileLocationInventory';
+import MobilePDAInbound from './pages/MobilePDAInbound';
+import MobileScanner from './pages/MobileScanner';
 import Settings from './pages/Settings';
 import MobileSKUManage from './pages/MobileSKUManage';
 import MobileLocationManage from './pages/MobileLocationManage';
@@ -33,6 +35,8 @@ const AuthMobileOutbound = withAuth(MobileOutbound);
 const AuthMobileProductManage = withAuth(MobileProductManage);
 const AuthMobileExternalCodes = withAuth(MobileExternalCodes);
 const AuthMobileLocationInventory = withAuth(MobileLocationInventory);
+const AuthMobilePDAInbound = withAuth(MobilePDAInbound);
+const AuthMobileScanner = withAuth(MobileScanner);
 const AuthSettings = withAuth(Settings);
 const AuthMobileSKUManage = withAuth(MobileSKUManage);
 const AuthMobileLocationManage = withAuth(MobileLocationManage);
@@ -52,6 +56,8 @@ function App() {
         <Route path="/mobile-product-manage" element={<AuthMobileProductManage />} />
         <Route path="/mobile-external-codes" element={<AuthMobileExternalCodes />} />
         <Route path="/mobile-location-inventory" element={<AuthMobileLocationInventory />} />
+        <Route path="/mobile-pda-inbound" element={<AuthMobilePDAInbound />} />
+        <Route path="/mobile-scanner" element={<AuthMobileScanner />} />
         <Route path="/settings" element={<AuthSettings />} />
         <Route path="/mobile-sku-manage" element={<AuthMobileSKUManage />} />
         <Route path="/mobile-location-manage" element={<AuthMobileLocationManage />} />
@@ -61,7 +67,6 @@ function App() {
         <Route path="/products" element={<Navigate to="/mobile-product-manage" replace />} />
         <Route path="/external-codes" element={<Navigate to="/mobile-external-codes" replace />} />
         <Route path="/location-inventory" element={<Navigate to="/mobile-location-inventory" replace />} />
-        <Route path="/locations" element={<Navigate to="/mobile-location-inventory" replace />} />
         {/* 其它未匹配路径也可重定向到移动端首页 */}
         <Route path="*" element={<Navigate to="/mobile-inventory" replace />} />
       </Routes>

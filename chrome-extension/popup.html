@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            width: 300px;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            margin: 0;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+        
+        .subtitle {
+            font-size: 12px;
+            color: #718096;
+        }
+        
+        .status-card {
+            background: linear-gradient(135deg, #f7fafc, #edf2f7);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #4299e1;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+            background: #48bb78;
+        }
+        
+        .status-dot.disabled {
+            background: #f56565;
+        }
+        
+        .status-text {
+            font-weight: 600;
+            color: #2d3748;
+        }
+        
+        .status-info {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 5px;
+        }
+        
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #4299e1, #3182ce);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #3182ce, #2c5aa0);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: linear-gradient(135deg, #38a169, #2f855a);
+        }
+        
+        .btn-secondary {
+            background: #edf2f7;
+            color: #4a5568;
+        }
+        
+        .btn-secondary:hover {
+            background: #e2e8f0;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .footer a {
+            color: #4299e1;
+            text-decoration: none;
+            font-size: 12px;
+        }
+        
+        .data-item {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 12px;
+        }
+        
+        .data-item:hover {
+            background: #edf2f7;
+            border-color: #4299e1;
+        }
+        
+        .data-item:active {
+            background: #e2e8f0;
+        }
+        
+        .data-barcode {
+            font-family: monospace;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 2px;
+        }
+        
+        .data-time {
+            color: #718096;
+            font-size: 10px;
+        }
+        
+        .copy-feedback {
+            position: absolute;
+            background: #48bb78;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title">📱 PDA扫码助手</div>
+        <div class="subtitle">自动接收扫码数据并输入到光标位置</div>
+    </div>
+    
+    <div class="status-card">
+        <div class="status-indicator">
+            <div class="status-dot" id="statusDot"></div>
+            <div class="status-text" id="statusText">检查状态中...</div>
+        </div>
+        <div class="status-info" id="statusInfo">正在获取插件状态...</div>
+    </div>
+    
+    <div class="controls">
+        <button class="btn btn-primary" id="toggleBtn">
+            启用/禁用
+        </button>
+        
+        <button class="btn btn-success" id="openPdaBtn">
+            🌐 打开PDA页面
+        </button>
+        
+        <button class="btn btn-secondary" id="testBtn">
+            📋 测试并获取最新
+        </button>
+        
+        <button class="btn btn-secondary" id="settingsBtn">
+            ⚙️ 设置
+        </button>
+    </div>
+    
+    <!-- 最近数据列表 -->
+    <div id="recentDataPanel" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e2e8f0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="margin: 0; font-size: 14px; color: #2d3748;">📋 最近5条数据</h3>
+            <button id="refreshDataBtn" style="border: none; background: none; color: #4299e1; cursor: pointer; font-size: 12px;">🔄 刷新</button>
+        </div>
+        <div id="recentDataList">
+            <div style="text-align: center; color: #718096; font-size: 12px; padding: 20px;">
+                点击"🔄 刷新"获取最新数据
+            </div>
+        </div>
+    </div>
+    
+    <!-- 设置面板 -->
+    <div id="settingsPanel" style="display: none;">
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e2e8f0;">
+            <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #2d3748;">⚙️ 配置设置</h3>
+            
+            <div style="margin-bottom: 10px;">
+                <label style="display: block; font-size: 12px; color: #4a5568; margin-bottom: 3px;">连接模式:</label>
+                <select id="connectionMode" style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 12px; box-sizing: border-box;">
+                    <option value="websocket">📡 WebSocket（被动接收广播）</option>
+                    <option value="polling">🔄 轮询模式（主动查询）</option>
+                </select>
+                <div style="font-size: 10px; color: #718096; margin-top: 2px;">
+                    📡 WebSocket: 实时接收，省资源<br>
+                    🔄 轮询: 定时查询，兼容性好
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 10px;">
+                <label style="display: block; font-size: 12px; color: #4a5568; margin-bottom: 3px;">PDA服务器地址:</label>
+                <input type="text" id="apiUrl" placeholder="http://192.168.11.252:8611" 
+                       style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 12px; box-sizing: border-box;">
+            </div>
+            
+            <div style="margin-bottom: 10px;" id="pollIntervalContainer">
+                <label style="display: block; font-size: 12px; color: #4a5568; margin-bottom: 3px;">轮询间隔 (秒):</label>
+                <select id="pollInterval" style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 12px; box-sizing: border-box;">
+                    <option value="0">🚫 仅手动刷新（省资源）</option>
+                    <option value="0.5">🚀 0.5秒（极速）</option>
+                    <option value="1">💨 1秒（超快）</option>
+                    <option value="2">⚡ 2秒（很快）</option>
+                    <option value="5">🔥 5秒（快速）</option>
+                    <option value="10">🔄 10秒（平衡）</option>
+                    <option value="30">🐌 30秒（省电）</option>
+                    <option value="60">💤 60秒（超省）</option>
+                </select>
+                <div style="font-size: 10px; color: #718096; margin-top: 2px;" id="pollIntervalHint">
+                    仅在轮询模式下有效，WebSocket模式无需轮询
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 10px;">
+                <label style="display: block; font-size: 12px; color: #4a5568; margin-bottom: 3px;">附加内容:</label>
+                <select id="appendType" style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 12px; box-sizing: border-box;">
+                    <option value="none">🚫 无附加内容</option>
+                    <option value="enter">⏎ 附加回车</option>
+                    <option value="tab">⇥ 附加TAB</option>
+                    <option value="newline">↩ 附加换行符</option>
+                </select>
+            </div>
+            
+            <div style="display: flex; gap: 8px; margin-top: 10px;">
+                <button class="btn btn-primary" id="saveSettingsBtn" style="flex: 1; font-size: 12px; padding: 8px;">
+                    💾 保存
+                </button>
+                <button class="btn btn-secondary" id="resetSettingsBtn" style="flex: 1; font-size: 12px; padding: 8px;">
+                    🔄 重置
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <a href="#" id="helpLink">帮助</a>
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html> 

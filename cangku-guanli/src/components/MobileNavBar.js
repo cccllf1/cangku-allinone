@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button, Space, Dropdown, message, Tooltip } from 'antd';
-import { SettingOutlined, LogoutOutlined, AppstoreOutlined, InboxOutlined, BarcodeOutlined, TagsOutlined, DatabaseOutlined } from '@ant-design/icons';
+import { SettingOutlined, LogoutOutlined, AppstoreOutlined, InboxOutlined, BarcodeOutlined, TagsOutlined, DatabaseOutlined, ScanOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import theme, { getStyle, messageConfig } from '../styles/theme';
 
@@ -36,9 +36,9 @@ const MobileNavBar = ({ currentPage }) => {
       icon: <BarcodeOutlined />
     },
     {
-      key: 'locationInventory',
-      label: '货位盘点',
-      icon: <InboxOutlined />
+      key: 'pdaInbound',
+      label: 'PDA入库',
+      icon: <ScanOutlined />
     },
     {
       key: 'locationManagement',
@@ -68,8 +68,8 @@ const MobileNavBar = ({ currentPage }) => {
       case 'externalCodes':
         navigate('/mobile-external-codes');
         break;
-      case 'locationInventory':
-        navigate('/mobile-location-inventory');
+      case 'pdaInbound':
+        navigate('/mobile-pda-inbound');
         break;
       case 'locationManagement':
         navigate('/mobile-location-manage');
@@ -108,7 +108,7 @@ const MobileNavBar = ({ currentPage }) => {
         {currentPage === 'products' && '产品管理'}
         {currentPage === 'skuManager' && 'SKU管理'}
         {currentPage === 'externalCodes' && '外部条码管理'}
-        {currentPage === 'locationInventory' && '货位盘点'}
+        {currentPage === 'pdaInbound' && 'PDA入库'}
         {currentPage === 'locationManagement' && '货位管理'}
         {currentPage === 'settings' && '系统设置'}
       </h2>
