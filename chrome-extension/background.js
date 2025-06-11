@@ -116,6 +116,12 @@ async function fetchCurrentResults() {
 
 // 发送扫码数据到当前活动的标签页
 async function sendToActiveTab(barcode) {
+  // 如果扩展被禁用，不发送数据
+  if (!isEnabled) {
+    console.log('🚫 扩展已禁用，不发送扫码数据');
+    return;
+  }
+  
   try {
     // 获取当前活动的标签页
     const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });

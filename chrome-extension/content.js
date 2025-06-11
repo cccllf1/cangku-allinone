@@ -36,19 +36,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('📨 收到消息:', message.type);
   
   if (message.type === 'PDA_SCAN_RESULT') {
-    console.log('📱 收到扫码数据:', message.barcode, '附加内容:', message.appendType);
-    lastBarcodeData = message.barcode;
-    
-    // 立即尝试插入
-    const success = insertBarcodeAtCursor(message.barcode, message.appendType);
-    sendResponse({ success: success });
-    
-    // 如果第一次失败，等待一下再试
-    if (!success) {
-      setTimeout(() => {
-        insertBarcodeAtCursor(message.barcode, message.appendType);
-      }, 500);
-    }
+    // 检查扩展是否启用
+    chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
+      if (response && response.enabled) {
+        console.log('📱 扩展已启用，处理扫码数据:', message.barcode);
+        lastBarcodeData = message.barcode;
+        
+        // 立即尝试插入
+        const success = insertBarcodeAtCursor(message.barcode, message.appendType);
+        sendResponse({ success: success });
+        
+        // 如果第一次失败，等待一下再试
+        if (!success) {
+          setTimeout(() => {
+            insertBarcodeAtCursor(message.barcode, message.appendType);
+          }, 500);
+        }
+      } else {
+        console.log('🚫 扩展已禁用，忽略扫码数据');
+        sendResponse({ success: false, reason: 'extension_disabled' });
+      }
+    });
   } else if (message.type === 'PING') {
     sendResponse({ ready: isExtensionReady });
   }
@@ -330,29 +338,45 @@ function showSuccessAnimation(element) {
 // 页面点击时，如果有未处理的扫码数据，尝试重新插入
 document.addEventListener('click', (event) => {
   if (lastBarcodeData && isInputElement(event.target)) {
-    console.log('🖱️ 检测到点击输入框，插入最新扫码数据');
-    setTimeout(() => {
-      // 获取当前设置的附加类型，如果没有则默认为none
-      chrome.storage.sync.get(['appendType'], function(result) {
-        const appendType = result.appendType || 'none';
-        insertIntoInputElement(event.target, lastBarcodeData, appendType);
-        lastBarcodeData = null; // 清除已使用的数据
-      });
-    }, 100);
+    // 检查扩展是否启用
+    chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
+      if (response && response.enabled) {
+        console.log('🖱️ 检测到点击输入框，插入最新扫码数据');
+        setTimeout(() => {
+          // 获取当前设置的附加类型，如果没有则默认为none
+          chrome.storage.sync.get(['appendType'], function(result) {
+            const appendType = result.appendType || 'none';
+            insertIntoInputElement(event.target, lastBarcodeData, appendType);
+            lastBarcodeData = null; // 清除已使用的数据
+          });
+        }, 100);
+      } else {
+        console.log('🚫 扩展已禁用，不插入数据');
+        lastBarcodeData = null; // 清除数据
+      }
+    });
   }
 });
 
 // 监听输入框获得焦点
 document.addEventListener('focusin', (event) => {
   if (lastBarcodeData && isInputElement(event.target)) {
-    console.log('🎯 检测到输入框获得焦点，插入最新扫码数据');
-    setTimeout(() => {
-      // 获取当前设置的附加类型，如果没有则默认为none
-      chrome.storage.sync.get(['appendType'], function(result) {
-        const appendType = result.appendType || 'none';
-        insertIntoInputElement(event.target, lastBarcodeData, appendType);
-        lastBarcodeData = null; // 清除已使用的数据
-      });
-    }, 100);
+    // 检查扩展是否启用
+    chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
+      if (response && response.enabled) {
+        console.log('🎯 检测到输入框获得焦点，插入最新扫码数据');
+        setTimeout(() => {
+          // 获取当前设置的附加类型，如果没有则默认为none
+          chrome.storage.sync.get(['appendType'], function(result) {
+            const appendType = result.appendType || 'none';
+            insertIntoInputElement(event.target, lastBarcodeData, appendType);
+            lastBarcodeData = null; // 清除已使用的数据
+          });
+        }, 100);
+      } else {
+        console.log('🚫 扩展已禁用，不插入数据');
+        lastBarcodeData = null; // 清除数据
+      }
+    });
   }
 }); 
