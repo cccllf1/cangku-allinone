@@ -566,16 +566,34 @@ const MobileInventory = () => {
       }
       
       // 构建基本请求数据
+      // 尝试使用多种可能的产品ID字段
+      const productId = currentProduct.product_id || currentProduct._id;
       const requestData = {
-        product_id: currentProduct._id,
+        product_id: productId,
         productCode: currentProduct.originalProductCode || currentProduct.productCode,
-        location_code: inoutLocation.locationCode,
+        location_code: inoutLocation.locationCode,  // 统一使用 location_code
         quantity: inoutQuantity
       };
       
+      // 调试：打印currentProduct的详细信息
+      console.log('当前商品详细信息:', {
+        _id: currentProduct._id,
+        productCode: currentProduct.productCode,
+        originalProductCode: currentProduct.originalProductCode,
+        product_id: currentProduct.product_id,
+        完整对象: currentProduct
+      });
+      
+      // 确保productId不为空
+      if (!productId) {
+        console.error('无法获取有效的产品ID:', currentProduct);
+        message.error('无法获取产品ID，请重新选择商品');
+        return;
+      }
+      
       // 如果操作的是SKU
       if (skuCode) {
-        requestData.skuCode = skuCode;
+        requestData.sku_code = skuCode;      // 修复：使用 sku_code 而不是 skuCode
         requestData.sku_color = skuColor;
         requestData.sku_size = skuSize;
         requestData.notes = `SKU: ${skuCode}`;
@@ -1359,11 +1377,37 @@ const MobileInventory = () => {
         // 从SKU代码中解析颜色和尺码
         const { color, size } = parseSkuCode(skuCode);
         
-        await api.post('/inbound/', {
-          product_id: currentProduct._id,
-          location_code: restockLocation,
+        // 使用正确的产品ID - 需要获取原始产品ID而不是库存记录ID
+        // 首先尝试通过productCode查找原始产品
+        let productId = currentProduct.product_id || currentProduct._id;
+        
+        try {
+          // 通过产品编码获取原始产品信息
+          const productCode = currentProduct.originalProductCode || currentProduct.productCode;
+          const productResponse = await api.get(`/products/code/${productCode}`);
+          if (productResponse.data && productResponse.data._id) {
+            productId = productResponse.data._id;
+            console.log('断码补货使用原始产品ID:', productId, '产品编码:', productCode);
+          }
+        } catch (error) {
+          console.warn('获取原始产品ID失败，使用当前产品ID:', productId);
+        }
+        
+        console.log('断码补货请求数据:', {
+          product_id: productId,
+          location_code: restockLocation,  // 统一使用 location_code
           quantity: quantity,
-          skuCode: skuCode,
+          sku_code: skuCode,               // 统一使用 sku_code
+          sku_color: sku?.color || color,
+          sku_size: sku?.size || size,
+          notes: `断码补货入库 - SKU: ${skuCode}`
+        });
+        
+        await api.post('/inbound/', {
+          product_id: productId,
+          location_code: restockLocation,  // 统一使用 location_code
+          quantity: quantity,
+          sku_code: skuCode,               // 统一使用 sku_code
           sku_color: sku?.color || color,
           sku_size: sku?.size || size,
           notes: `断码补货入库 - SKU: ${skuCode}`

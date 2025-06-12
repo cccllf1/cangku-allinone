@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仓库管理系统 API 接口文档</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f8f9fa;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .nav {
+            background: white;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .nav h3 {
+            margin-bottom: 1rem;
+            color: #667eea;
+        }
+        
+        .nav-links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.5rem;
+        }
+        
+        .nav-links a {
+            color: #666;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+        
+        .nav-links a:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        .section {
+            background: white;
+            margin-bottom: 2rem;
+            border-radius: 10px;
+            padding: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #eee;
+        }
+        
+        .endpoint {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+        
+        .endpoint-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .method {
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            margin-right: 1rem;
+        }
+        
+        .method.get { background: #d4edda; color: #155724; }
+        .method.post { background: #cce5ff; color: #0056b3; }
+        .method.put { background: #fff3cd; color: #856404; }
+        .method.delete { background: #f8d7da; color: #721c24; }
+        
+        .endpoint-url {
+            font-family: 'Courier New', monospace;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        
+        .endpoint-description {
+            margin-bottom: 1rem;
+            color: #666;
+        }
+        
+        .params, .response {
+            margin-top: 1rem;
+        }
+        
+        .params h4, .response h4 {
+            margin-bottom: 0.5rem;
+            color: #495057;
+        }
+        
+        .param-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0.5rem;
+        }
+        
+        .param-table th,
+        .param-table td {
+            padding: 0.5rem;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .param-table th {
+            background: #f8f9fa;
+            font-weight: bold;
+        }
+        
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+        
+        .required {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .optional {
+            color: #6c757d;
+        }
+        
+        .base-url {
+            background: #e7f3ff;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 2rem;
+            border-left: 4px solid #667eea;
+        }
+        
+        .note {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .note-title {
+            font-weight: bold;
+            color: #856404;
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏭 仓库管理系统</h1>
+            <p class="subtitle">API 接口文档 v1.0</p>
+        </header>
+
+        <div class="base-url">
+            <strong>基础 URL:</strong> <code>http://your-server:8611/api</code><br>
+            <strong>认证方式:</strong> Bearer Token (在请求头中添加 Authorization: Bearer &lt;token&gt;)
+        </div>
+
+        <div class="nav">
+            <h3>📑 快速导航</h3>
+            <div class="nav-links">
+                <a href="#auth">🔐 用户认证</a>
+                <a href="#products">📦 商品管理</a>
+                <a href="#locations">📍 库位管理</a>
+                <a href="#inventory">📊 库存管理</a>
+                <a href="#inbound">📥 入库操作</a>
+                <a href="#outbound">📤 出库操作</a>
+                <a href="#upload">🖼️ 文件上传</a>
+                <a href="#external-codes">🔗 外部条码</a>
+            </div>
+        </div>
+
+        <!-- 用户认证 -->
+        <div id="auth" class="section">
+            <h2>🔐 用户认证</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method post">POST</span>
+                    <span class="endpoint-url">/auth/login</span>
+                </div>
+                <div class="endpoint-description">用户登录</div>
+                <div class="params">
+                    <h4>请求参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>username</td><td>string</td><td class="required">是</td><td>用户名</td></tr>
+                        <tr><td>password</td><td>string</td><td class="required">是</td><td>密码</td></tr>
+                    </table>
+                </div>
+                <div class="response">
+                    <h4>响应示例:</h4>
+                    <div class="code-block">
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "64f7b1c8e4b0c1234567890a",
+    "username": "admin",
+    "role": "admin"
+  },
+  "is_admin": true
+}
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method post">POST</span>
+                    <span class="endpoint-url">/auth/register</span>
+                </div>
+                <div class="endpoint-description">用户注册</div>
+                <div class="params">
+                    <h4>请求参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>username</td><td>string</td><td class="required">是</td><td>用户名</td></tr>
+                        <tr><td>password</td><td>string</td><td class="required">是</td><td>密码</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method get">GET</span>
+                    <span class="endpoint-url">/auth/me</span>
+                </div>
+                <div class="endpoint-description">获取当前用户信息</div>
+                <div class="note">
+                    <div class="note-title">🔒 需要认证</div>
+                    请求头需要包含有效的 Authorization token
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method get">GET</span>
+                    <span class="endpoint-url">/auth/users</span>
+                </div>
+                <div class="endpoint-description">获取所有用户列表（仅管理员）</div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method post">POST</span>
+                    <span class="endpoint-url">/auth/change_password</span>
+                </div>
+                <div class="endpoint-description">修改密码</div>
+                <div class="params">
+                    <h4>请求参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>oldPassword</td><td>string</td><td class="required">是</td><td>原密码</td></tr>
+                        <tr><td>newPassword</td><td>string</td><td class="required">是</td><td>新密码</td></tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 商品管理 -->
+        <div id="products" class="section">
+            <h2>📦 商品管理</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method get">GET</span>
+                    <span class="endpoint-url">/products</span>
+                </div>
+                <div class="endpoint-description">获取所有商品列表</div>
+                <div class="response">
+                    <h4>响应示例:</h4>
+                    <div class="code-block">
+[
+  {
+    "id": "64f7b1c8e4b0c1234567890a",
+    "code": "PROD001",
+    "name": "测试商品",
+    "unit": "件",
+    "image_path": "/uploads/image123.jpg",
+    "has_sku": true,
+    "skus": [
+      {
+        "code": "PROD001-RED-L",
+        "color": "红色",
+        "size": "L",
+        "external_codes": ["123456789"]
+      }
+    ]
+  }
+]
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method get">GET</span>
+                    <span class="endpoint-url">/products/:id</span>
+                </div>
+                <div class="endpoint-description">根据ID获取单个商品信息</div>
+                <div class="params">
+                    <h4>路径参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>id</td><td>string</td><td class="required">是</td><td>商品ID</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method get">GET</span>
+                    <span class="endpoint-url">/products/code/:code</span>
+                </div>
+                <div class="endpoint-description">根据编码获取商品信息</div>
+                <div class="params">
+                    <h4>路径参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>code</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method post">POST</span>
+                    <span class="endpoint-url">/products</span>
+                </div>
+                <div class="endpoint-description">创建新商品</div>
+                <div class="params">
+                    <h4>请求参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>code</td><td>string</td><td class="required">是</td><td>商品编码</td></tr>
+                        <tr><td>name</td><td>string</td><td class="optional">否</td><td>商品名称</td></tr>
+                        <tr><td>unit</td><td>string</td><td class="optional">否</td><td>计量单位，默认"件"</td></tr>
+                        <tr><td>image_path</td><td>string</td><td class="optional">否</td><td>商品图片路径</td></tr>
+                        <tr><td>has_sku</td><td>boolean</td><td class="optional">否</td><td>是否有SKU</td></tr>
+                        <tr><td>skus</td><td>array</td><td class="optional">否</td><td>SKU列表</td></tr>
+                        <tr><td>description</td><td>string</td><td class="optional">否</td><td>商品描述</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method put">PUT</span>
+                    <span class="endpoint-url">/products/:id</span>
+                </div>
+                <div class="endpoint-description">更新商品信息</div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method delete">DELETE</span>
+                    <span class="endpoint-url">/products/:id</span>
+                </div>
+                <div class="endpoint-description">删除商品</div>
+            </div>
+        </div>
+
+        <!-- 库位管理 -->
+        <div id="locations" class="section">
+            <h2>📍 库位管理</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method get">GET</span>
+                    <span class="endpoint-url">/locations</span>
+                </div>
+                <div class="endpoint-description">获取所有库位列表</div>
+                <div class="response">
+                    <h4>响应示例:</h4>
+                    <div class="code-block">
+[
+  {
+    "id": "64f7b1c8e4b0c1234567890b",
+    "code": "A01-01-01",
+    "name": "A区1排1号",
+    "description": "主库位",
+    "priority": 1,
+    "defective": false
+  }
+]
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method get">GET</span>
+                    <span class="endpoint-url">/locations/code/:code</span>
+                </div>
+                <div class="endpoint-description">根据编码获取库位信息</div>
+                <div class="params">
+                    <h4>路径参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>code</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method post">POST</span>
+                    <span class="endpoint-url">/locations</span>
+                </div>
+                <div class="endpoint-description">创建新库位</div>
+                <div class="params">
+                    <h4>请求参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>code</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
+                        <tr><td>name</td><td>string</td><td class="optional">否</td><td>库位名称</td></tr>
+                        <tr><td>description</td><td>string</td><td class="optional">否</td><td>库位描述</td></tr>
+                        <tr><td>priority</td><td>number</td><td class="optional">否</td><td>优先级</td></tr>
+                        <tr><td>defective</td><td>boolean</td><td class="optional">否</td><td>是否为次品区</td></tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 库存管理 -->
+        <div id="inventory" class="section">
+            <h2>📊 库存管理</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method get">GET</span>
+                    <span class="endpoint-url">/inventory</span>
+                </div>
+                <div class="endpoint-description">获取所有库存信息</div>
+                <div class="response">
+                    <h4>响应示例:</h4>
+                    <div class="code-block">
+[
+  {
+    "product_id": "64f7b1c8e4b0c1234567890a",
+    "product_code": "PROD001",
+    "sku_code": "PROD001-RED-L",
+    "locations": [
+      {
+        "location_id": "64f7b1c8e4b0c1234567890b",
+        "location_code": "A01-01-01",
+        "quantity": 100,
+        "batch_number": "BATCH001"
+      }
+    ],
+    "total_quantity": 100
+  }
+]
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method get">GET</span>
+                    <span class="endpoint-url">/inventory/location/:locationCode</span>
+                </div>
+                <div class="endpoint-description">获取指定库位的库存</div>
+                <div class="params">
+                    <h4>路径参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>locationCode</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method get">GET</span>
+                    <span class="endpoint-url">/inventory/product-locations/:productCode</span>
+                </div>
+                <div class="endpoint-description">获取指定商品在所有库位的分布</div>
+                <div class="params">
+                    <h4>路径参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>productCode</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method post">POST</span>
+                    <span class="endpoint-url">/inventory/adjust</span>
+                </div>
+                <div class="endpoint-description">库存调整</div>
+                <div class="params">
+                    <h4>请求参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>productCode</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
+                        <tr><td>locationCode</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
+                        <tr><td>quantity</td><td>number</td><td class="required">是</td><td>调整数量（正数增加，负数减少）</td></tr>
+                        <tr><td>batch_number</td><td>string</td><td class="optional">否</td><td>批次号</td></tr>
+                        <tr><td>notes</td><td>string</td><td class="optional">否</td><td>备注</td></tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 入库操作 -->
+        <div id="inbound" class="section">
+            <h2>📥 入库操作</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method post">POST</span>
+                    <span class="endpoint-url">/inbound</span>
+                </div>
+                <div class="endpoint-description">商品入库</div>
+                <div class="params">
+                    <h4>请求参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>productCode / product_code</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
+                        <tr><td>locationCode / location_code</td><td>string</td><td class="optional">否</td><td>库位编码，不指定则入库到无货位</td></tr>
+                        <tr><td>quantity</td><td>number</td><td class="required">是</td><td>入库数量</td></tr>
+                        <tr><td>batch_number / batchNumber</td><td>string</td><td class="optional">否</td><td>批次号</td></tr>
+                        <tr><td>notes</td><td>string</td><td class="optional">否</td><td>备注</td></tr>
+                        <tr><td>sku_code / skuCode</td><td>string</td><td class="optional">否</td><td>SKU编码</td></tr>
+                    </table>
+                </div>
+                <div class="note">
+                    <div class="note-title">💡 提示</div>
+                    支持多种参数格式，系统会自动识别商品编码和SKU编码。如果编码包含"-"符号，会自动解析为SKU。
+                </div>
+                <div class="response">
+                    <h4>请求示例:</h4>
+                    <div class="code-block">
+{
+  "productCode": "PROD001-RED-L",
+  "locationCode": "A01-01-01",
+  "quantity": 50,
+  "batch_number": "BATCH001",
+  "notes": "正常入库"
+}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 出库操作 -->
+        <div id="outbound" class="section">
+            <h2>📤 出库操作</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method post">POST</span>
+                    <span class="endpoint-url">/outbound</span>
+                </div>
+                <div class="endpoint-description">商品出库</div>
+                <div class="params">
+                    <h4>请求参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>productCode / product_code</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
+                        <tr><td>locationCode / location_code</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
+                        <tr><td>quantity</td><td>number</td><td class="required">是</td><td>出库数量</td></tr>
+                        <tr><td>sku_code / skuCode</td><td>string</td><td class="optional">否</td><td>SKU编码</td></tr>
+                    </table>
+                </div>
+                <div class="note">
+                    <div class="note-title">⚠️ 注意</div>
+                    出库数量不能超过库存数量，系统会自动检查库存充足性。
+                </div>
+            </div>
+        </div>
+
+        <!-- 文件上传 -->
+        <div id="upload" class="section">
+            <h2>🖼️ 文件上传</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method post">POST</span>
+                    <span class="endpoint-url">/upload/image</span>
+                </div>
+                <div class="endpoint-description">上传图片文件</div>
+                <div class="params">
+                    <h4>请求参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>image</td><td>file</td><td class="required">是</td><td>图片文件 (multipart/form-data)</td></tr>
+                    </table>
+                </div>
+                <div class="note">
+                    <div class="note-title">📋 文件限制</div>
+                    支持格式：jpg, jpeg, png, gif<br>
+                    最大大小：10MB
+                </div>
+                <div class="response">
+                    <h4>响应示例:</h4>
+                    <div class="code-block">
+{
+  "url": "/uploads/1234567890.jpg",
+  "message": "文件上传成功"
+}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 外部条码管理 -->
+        <div id="external-codes" class="section">
+            <h2>🔗 外部条码管理</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method get">GET</span>
+                    <span class="endpoint-url">/products/:id/external-codes</span>
+                </div>
+                <div class="endpoint-description">获取商品的所有外部条码</div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method post">POST</span>
+                    <span class="endpoint-url">/products/:id/external-codes</span>
+                </div>
+                <div class="endpoint-description">为商品添加外部条码</div>
+                <div class="params">
+                    <h4>请求参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>external_code</td><td>string</td><td class="required">是</td><td>外部条码</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method get">GET</span>
+                    <span class="endpoint-url">/sku/:skuCode/external-codes</span>
+                </div>
+                <div class="endpoint-description">获取SKU的所有外部条码</div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method post">POST</span>
+                    <span class="endpoint-url">/sku/:skuCode/external-codes</span>
+                </div>
+                <div class="endpoint-description">为SKU添加外部条码</div>
+                <div class="params">
+                    <h4>请求参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>external_code</td><td>string</td><td class="required">是</td><td>外部条码</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method get">GET</span>
+                    <span class="endpoint-url">/sku/external/:externalCode</span>
+                </div>
+                <div class="endpoint-description">根据外部条码查找SKU信息</div>
+                <div class="params">
+                    <h4>路径参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>externalCode</td><td>string</td><td class="required">是</td><td>外部条码</td></tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- WebSocket 接口 -->
+        <div class="section">
+            <h2>🔄 WebSocket 实时通信</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method get">WS</span>
+                    <span class="endpoint-url">ws://your-server:8611</span>
+                </div>
+                <div class="endpoint-description">WebSocket 连接用于实时数据同步</div>
+                <div class="note">
+                    <div class="note-title">📡 实时事件</div>
+                    - 扫码结果推送<br>
+                    - 库存变动通知<br>
+                    - 清空扫码结果通知
+                </div>
+            </div>
+        </div>
+
+        <!-- 错误处理 -->
+        <div class="section">
+            <h2>⚠️ 错误处理</h2>
+            
+            <div class="note">
+                <div class="note-title">HTTP 状态码说明</div>
+                <table class="param-table">
+                    <tr><th>状态码</th><th>说明</th></tr>
+                    <tr><td>200</td><td>请求成功</td></tr>
+                    <tr><td>201</td><td>创建成功</td></tr>
+                    <tr><td>400</td><td>请求参数错误</td></tr>
+                    <tr><td>401</td><td>未授权（需要登录）</td></tr>
+                    <tr><td>403</td><td>无权限访问</td></tr>
+                    <tr><td>404</td><td>资源不存在</td></tr>
+                    <tr><td>500</td><td>服务器内部错误</td></tr>
+                </table>
+            </div>
+
+            <div style="margin-top: 1rem;">
+                <h4>错误响应格式:</h4>
+                <div class="code-block">
+{
+  "error": "错误类型",
+  "message": "详细错误信息"
+}
+                </div>
+            </div>
+        </div>
+
+        <footer style="text-align: center; margin-top: 3rem; padding: 2rem; color: #666;">
+            <p>📚 仓库管理系统 API 文档 - 最后更新时间: 2024年12月</p>
+            <p>如有问题请联系系统管理员 📧</p>
+        </footer>
+    </div>
+</body>
+</html>
+</rewritten_file>

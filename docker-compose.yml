@@ -21,7 +21,7 @@ services:
     depends_on:
       - mongo
     volumes:
-      - ./server:/app
+      #- ./server:/app
       - ./server/uploads:/app/uploads
     environment:
       - MONGODB_URI=mongodb://mongo:8612/cangku-guanli
