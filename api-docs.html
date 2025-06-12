@@ -303,8 +303,8 @@
                     <h4>请求参数:</h4>
                     <table class="param-table">
                         <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
-                        <tr><td>oldPassword</td><td>string</td><td class="required">是</td><td>原密码</td></tr>
-                        <tr><td>newPassword</td><td>string</td><td class="required">是</td><td>新密码</td></tr>
+                        <tr><td>old_password</td><td>string</td><td class="required">是</td><td>原密码</td></tr>
+                        <tr><td>new_password</td><td>string</td><td class="required">是</td><td>新密码</td></tr>
                     </table>
                 </div>
             </div>
@@ -336,7 +336,7 @@
         "code": "PROD001-RED-L",
         "color": "红色",
         "size": "L",
-        "external_codes": ["123456789"]
+        "external_code": ["123456789"]
       }
     ]
   }
@@ -497,11 +497,11 @@
       {
         "location_id": "64f7b1c8e4b0c1234567890b",
         "location_code": "A01-01-01",
-        "quantity": 100,
+        "qstock_quantity": 100,
         "batch_number": "BATCH001"
       }
     ],
-    "total_quantity": 100
+    "stock_quantity": 100
   }
 ]
                     </div>
@@ -511,14 +511,14 @@
             <div class="endpoint">
                 <div class="endpoint-header">
                     <span class="method get">GET</span>
-                    <span class="endpoint-url">/inventory/location/:locationCode</span>
+                    <span class="endpoint-url">/inventory/location/:location_code</span>
                 </div>
                 <div class="endpoint-description">获取指定库位的库存</div>
                 <div class="params">
                     <h4>路径参数:</h4>
                     <table class="param-table">
                         <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
-                        <tr><td>locationCode</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
+                        <tr><td>location_code</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
                     </table>
                 </div>
             </div>
@@ -526,14 +526,14 @@
             <div class="endpoint">
                 <div class="endpoint-header">
                     <span class="method get">GET</span>
-                    <span class="endpoint-url">/inventory/product-locations/:productCode</span>
+                    <span class="endpoint-url">/inventory/product-locations/:product_code</span>
                 </div>
                 <div class="endpoint-description">获取指定商品在所有库位的分布</div>
                 <div class="params">
                     <h4>路径参数:</h4>
                     <table class="param-table">
                         <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
-                        <tr><td>productCode</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
+                        <tr><td>product_code</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
                     </table>
                 </div>
             </div>
@@ -548,9 +548,9 @@
                     <h4>请求参数:</h4>
                     <table class="param-table">
                         <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
-                        <tr><td>productCode</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
-                        <tr><td>locationCode</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
-                        <tr><td>quantity</td><td>number</td><td class="required">是</td><td>调整数量（正数增加，负数减少）</td></tr>
+                        <tr><td>product_code</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
+                        <tr><td>location_code</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
+                        <tr><td>stock_quantity</td><td>number</td><td class="required">是</td><td>调整数量（正数增加，负数减少）</td></tr>
                         <tr><td>batch_number</td><td>string</td><td class="optional">否</td><td>批次号</td></tr>
                         <tr><td>notes</td><td>string</td><td class="optional">否</td><td>备注</td></tr>
                     </table>
@@ -572,12 +572,12 @@
                     <h4>请求参数:</h4>
                     <table class="param-table">
                         <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
-                        <tr><td>productCode / product_code</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
-                        <tr><td>locationCode / location_code</td><td>string</td><td class="optional">否</td><td>库位编码，不指定则入库到无货位</td></tr>
-                        <tr><td>quantity</td><td>number</td><td class="required">是</td><td>入库数量</td></tr>
+                        <tr><td>product_code / product_code</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
+                        <tr><td>location_code / location_code</td><td>string</td><td class="optional">否</td><td>库位编码，不指定则入库到无货位</td></tr>
+                        <tr><td>stock_quantity</td><td>number</td><td class="required">是</td><td>入库数量</td></tr>
                         <tr><td>batch_number / batchNumber</td><td>string</td><td class="optional">否</td><td>批次号</td></tr>
                         <tr><td>notes</td><td>string</td><td class="optional">否</td><td>备注</td></tr>
-                        <tr><td>sku_code / skuCode</td><td>string</td><td class="optional">否</td><td>SKU编码</td></tr>
+                        <tr><td>sku_code / sku_code</td><td>string</td><td class="optional">否</td><td>SKU编码</td></tr>
                     </table>
                 </div>
                 <div class="note">
@@ -588,9 +588,9 @@
                     <h4>请求示例:</h4>
                     <div class="code-block">
 {
-  "productCode": "PROD001-RED-L",
-  "locationCode": "A01-01-01",
-  "quantity": 50,
+  "product_code": "PROD001-RED-L",
+  "location_code": "A01-01-01",
+  "stock_quantity": 50,
   "batch_number": "BATCH001",
   "notes": "正常入库"
 }
@@ -613,10 +613,10 @@
                     <h4>请求参数:</h4>
                     <table class="param-table">
                         <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
-                        <tr><td>productCode / product_code</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
-                        <tr><td>locationCode / location_code</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
-                        <tr><td>quantity</td><td>number</td><td class="required">是</td><td>出库数量</td></tr>
-                        <tr><td>sku_code / skuCode</td><td>string</td><td class="optional">否</td><td>SKU编码</td></tr>
+                        <tr><td>product_code / product_code</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
+                        <tr><td>location_code / location_code</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
+                        <tr><td>stock_quantity</td><td>number</td><td class="required">是</td><td>出库数量</td></tr>
+                        <tr><td>sku_code / sku_code</td><td>string</td><td class="optional">否</td><td>SKU编码</td></tr>
                     </table>
                 </div>
                 <div class="note">
@@ -690,7 +690,7 @@
             <div class="endpoint">
                 <div class="endpoint-header">
                     <span class="method get">GET</span>
-                    <span class="endpoint-url">/sku/:skuCode/external-codes</span>
+                    <span class="endpoint-url">/sku/:sku_code/external-codes</span>
                 </div>
                 <div class="endpoint-description">获取SKU的所有外部条码</div>
             </div>
@@ -698,7 +698,7 @@
             <div class="endpoint">
                 <div class="endpoint-header">
                     <span class="method post">POST</span>
-                    <span class="endpoint-url">/sku/:skuCode/external-codes</span>
+                    <span class="endpoint-url">/sku/:sku_code/external-codes</span>
                 </div>
                 <div class="endpoint-description">为SKU添加外部条码</div>
                 <div class="params">
@@ -713,14 +713,14 @@
             <div class="endpoint">
                 <div class="endpoint-header">
                     <span class="method get">GET</span>
-                    <span class="endpoint-url">/sku/external/:externalCode</span>
+                    <span class="endpoint-url">/sku/external/:external_code</span>
                 </div>
                 <div class="endpoint-description">根据外部条码查找SKU信息</div>
                 <div class="params">
                     <h4>路径参数:</h4>
                     <table class="param-table">
                         <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
-                        <tr><td>externalCode</td><td>string</td><td class="required">是</td><td>外部条码</td></tr>
+                        <tr><td>external_code</td><td>string</td><td class="required">是</td><td>外部条码</td></tr>
                     </table>
                 </div>
             </div>
