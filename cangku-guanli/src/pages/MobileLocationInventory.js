@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { 
   Input, Button, List, Card, Select, Badge, Tag, Space, 
   Modal, InputNumber, message, Empty, Spin, Form, Checkbox, Drawer
@@ -49,13 +49,182 @@ function getUnique(arr, keyOrFn) {
 
 // 筛选字段定义
 const FIELD_WHITELIST = [
-  { key: 'productCode', label: '商品编号', getValue: item => item.productCode || item.code || '' },
-  { key: 'color', label: '颜色', getValue: item => item.color || item.sku_color || '' },
-  { key: 'sku_size', label: '尺码', getValue: item => item.sku_size || item.size || '' },
-  { key: 'quantity', label: '货位SKU数量', getValue: item => item.quantity },
-  { key: 'locationCode', label: '货位', getValue: item => item.locationCode || item.code || '' },
-  { key: 'quantityRange', label: '货位合计区间', getValue: item => item.quantityRange }
+  { key: 'product_code', label: '商品编号', getValue: item => item.product_code || item.sku_code?.split('-')[0] || '' },
+  { key: 'sku_color', label: '颜色', getValue: item => item.sku_color || '' },
+  { key: 'sku_size', label: '尺码', getValue: item => item.sku_size || '' },
+  { key: 'stock_quantity', label: '货位SKU数量', getValue: item => item.stock_quantity },
+  { key: 'location_code', label: '货位', getValue: item => item.location_code || '' },
+  { key: 'quantity_range', label: '货位合计区间', getValue: item => item.quantity_range }
 ];
+
+// 独立的图片区组件
+function ImageRow({ items, getFullImageUrl }) {
+  const imagesContainerRef = useRef(null);
+  const sortedItems = Array.isArray(items) ? [...items].sort((a, b) => a.stock_quantity - b.stock_quantity) : [];
+  return (
+    <div
+      ref={imagesContainerRef}
+      style={{ overflowX: 'auto', minWidth: 0 }}
+    >
+      <div className="location-images-section" style={{ display: 'flex', gap: 0 }}>
+        {sortedItems.map((item, idx) => (
+          <div key={item.sku_code || idx} style={{ position: 'relative', width: 65, height: 65, border: '1px solid #eee', borderRadius: 6, overflow: 'hidden', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {item.image_path ? (
+              <img src={getFullImageUrl(item.image_path)} alt={item.sku_code} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <div style={{ color: '#bbb', fontSize: 12 }}>无图</div>
+            )}
+            {/* 左上角SKU总数角标 */}
+            <div style={{ position: 'absolute', top: 2, left: 2, background: 'rgba(0,0,0,0.2)', color: '#222', borderRadius: 8, fontSize: 12, padding: '0 7px', fontWeight: 700, minWidth: 20, textAlign: 'center', lineHeight: '20px', height: 20 }}>{sortedItems.length}</div>
+            {/* 右下角该SKU库存角标 */}
+            <div style={{ position: 'absolute', bottom: 2, right: 2, background: 'rgba(255,77,79,0.2)', color: '#ff4d4f', borderRadius: 8, fontSize: 13, padding: '0 7px', fontWeight: 700, minWidth: 20, textAlign: 'center', lineHeight: '20px', height: 20 }}>{item.stock_quantity}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// 子组件：每行独立自动滚动
+function LocationImageRow({ items, getFullImageUrl }) {
+  const scrollRef = React.useRef(null);
+  React.useEffect(() => {
+    setTimeout(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollLeft = 0; // 试试最左
+      }
+    }, 0);
+  }, [items.length, items.map(item => item.sku_code).join(',')]);
+  return (
+    <div
+      ref={scrollRef}
+      style={{
+        overflowX: 'auto',
+        minWidth: 0,
+        padding: 0,
+        margin: 0,
+        border: 'none',
+        background: 'none',
+        scrollbarWidth: 'auto', // 显示滚动条
+        msOverflowStyle: 'auto',
+      }}
+      // className="hide-horizontal-scrollbar" // 移除隐藏滚动条
+    >
+      <div
+        className="location-images-section"
+        style={{ display: 'flex', gap: 0, minWidth: 'max-content' }}
+      >
+        {items
+          .slice()
+          .sort((a, b) => a.stock_quantity - b.stock_quantity)
+          .map((item, idx) => (
+            <div
+              key={item.sku_code || idx}
+              style={{
+                flex: 'none',
+                position: 'relative',
+                width: 65,
+                height: 65,
+                border: '1px solid #eee',
+                borderRadius: 6,
+                overflow: 'hidden',
+                background: '#f5f5f5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {item.image_path ? (
+                <img
+                  src={getFullImageUrl(item.image_path)}
+                  alt={item.sku_code}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                <div style={{ color: '#bbb', fontSize: 12 }}>无图</div>
+              )}
+              {/* 左上角SKU总数角标 */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 2,
+                  left: 2,
+                  background: 'rgba(0,0,0,0.2)', // 20% 透明黑
+                  color: '#fff',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  padding: '0 7px',
+                  fontWeight: 700,
+                  minWidth: 20,
+                  textAlign: 'center',
+                  lineHeight: '20px',
+                  height: 20,
+                }}
+              >
+                {getSkuSize(item)}
+              </div>
+              {/* 右下角该SKU库存角标 */}
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 2,
+                  right: 2,
+                  background: 'rgba(255,77,79,0.2)', // 20% 透明红
+                  color: '#fff',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  padding: '0 7px',
+                  fontWeight: 700,
+                  minWidth: 20,
+                  textAlign: 'center',
+                  lineHeight: '20px',
+                  height: 20,
+                }}
+              >
+                {item.stock_quantity}
+              </div>
+            </div>
+          ))}
+      </div>
+    </div>
+  );
+}
+
+// 全局监听页面resize，所有图片横向滚动区始终锁定最右
+
+function useScrollAllImageRowsToRight() {
+  useLayoutEffect(() => {
+    function scrollAllToRight() {
+      document.querySelectorAll('.location-images-section').forEach(section => {
+        const el = section.parentElement;
+        if (el) el.scrollLeft = el.scrollWidth;
+      });
+    }
+    window.addEventListener('resize', scrollAllToRight);
+    setTimeout(scrollAllToRight, 100);
+    return () => window.removeEventListener('resize', scrollAllToRight);
+  }, []);
+}
+
+// 在组件顶部加一个提取尺码的函数
+function getSkuSize(item) {
+  if (item.sku_size) return item.sku_size;
+  if (item.sku_code) {
+    const parts = item.sku_code.split('-');
+    return parts[2] || '-';
+  }
+  return '-';
+}
+
+// 提取颜色的函数
+function getSkuColor(item) {
+  if (item.sku_color) return item.sku_color;
+  if (item.sku_code) {
+    const parts = item.sku_code.split('-');
+    return parts[1] || '';
+  }
+  return '';
+}
 
 const MobileLocationInventory = () => {
   const [locations, setLocations] = useState([]);
@@ -153,27 +322,27 @@ const MobileLocationInventory = () => {
   const allQuantities = useMemo(() => getUnique(allInventoryItems, 'quantity'), [allInventoryItems]);
 
   const filterFields = [
-    { key: 'productCode', label: '商品编号', options: allProductCodes },
+    { key: 'product_code', label: '商品编号', options: allProductCodes },
     { key: 'color', label: '颜色', options: allColors },
     { key: 'sku_size', label: '尺码', options: allSizes },
     { key: 'quantity', label: '数量', options: allQuantities },
-    { key: 'code', label: '货位', options: locations.map(l => l.code) },
+    { key: 'location_code', label: '货位', options: locations.map(l => l.location_code) },
   ];
 
   // 在组件内定义映射对象
   const filterStateMap = {
-    productCode: productCodeFilter,
+    product_code: productCodeFilter,
     color: colorFilter,
     sku_size: sizeFilter,
     quantity: quantityFilter,
-    code: codeFilter || [], // 如果没有codeFilter可用空数组兜底
+    location_code: codeFilter || [], // 如果没有codeFilter可用空数组兜底
   };
   const setFilterStateMap = {
-    productCode: setProductCodeFilter,
+    product_code: setProductCodeFilter,
     color: setColorFilter,
     sku_size: setSizeFilter,
     quantity: setQuantityFilter,
-    code: setCodeFilter || (()=>{}), // 如果没有codeFilter可用空函数兜底
+    location_code: setCodeFilter || (()=>{}), // 如果没有codeFilter可用空函数兜底
   };
 
   // 自动提取所有字段名
@@ -187,17 +356,17 @@ const MobileLocationInventory = () => {
   // 自动提取所有字段的可选值
   const allFieldOptions = useMemo(() => {
     const options = {
-      productCode: new Set(),
+      product_code: new Set(),
       color: new Set(),
       sku_size: new Set(),
       quantity: new Set(),
-      locationCode: new Set()
+      location_code: new Set()
     };
     
     // 遍历所有库位和库存项
     locations.forEach(loc => {
       // 货位选项
-      if (loc.code) options.locationCode.add(loc.code);
+      if (loc.location_code) options.location_code.add(loc.location_code);
 
       // 遍历库存项
       if (loc.inventoryItems) {
@@ -205,7 +374,7 @@ const MobileLocationInventory = () => {
           // 商品编号选项 - 只从SKU code中提取基础商品编号，不包含颜色和尺码
           if (item.sku_code) {
             const baseCode = safeSplit(item.sku_code, '-')[0];
-            if (baseCode) options.productCode.add(baseCode);
+            if (baseCode) options.product_code.add(baseCode);
           }
           // 注意：不再添加完整的SKU编码作为商品编号
           // if (item.productCode) options.productCode.add(item.productCode);
@@ -248,11 +417,11 @@ const MobileLocationInventory = () => {
 
   // 筛选状态
   const [fieldFilters, setFieldFilters] = useState({
-    productCode: [],
+    product_code: [],
     color: [],
     sku_size: [],
     quantity: [],
-    locationCode: []
+    location_code: []
   });
 
   // 页面加载时获取所有库位
@@ -262,140 +431,29 @@ const MobileLocationInventory = () => {
 
   // 获取所有库位信息
   const fetchLocations = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      
-      // 同时获取所有货位和库存数据
-      const [locationsRes, inventoryRes] = await Promise.all([
-        api.get('/locations/'),
-        api.get('/inventory/')
-      ]);
-      
-      const allLocations = locationsRes.data || [];
-      const inventory = inventoryRes.data || [];
-      
-      // 建立所有货位的列表（包括空货位）
-      const locationsList = allLocations.map(loc => ({
-        code: loc.code,
-        name: loc.name || loc.code,
-        _id: loc._id || loc.id
-      }));
-      
-      // 暂时跳过商品详情获取，直接使用库存数据中的信息
-      const productMap = {};
-      
-      // 获取商品详情以获取图片信息
-      const productIds = new Set();
-      inventory.forEach(item => {
-        if (item.product_id) {
-          productIds.add(item.product_id);
-        }
-      });
-      
-      let products = [];
-      if (productIds.size > 0) {
-        try {
-          const productPromises = Array.from(productIds).map(id => api.get(`/products/${id}`));
-          const productResults = await Promise.all(productPromises);
-          products = productResults.map(result => result.data);
-          
-          // 建立商品映射
-          products.forEach(product => {
-            productMap[product._id || product.id] = product;
-          });
-        } catch (error) {
-          console.error('获取商品详情失败:', error);
-        }
+      const response = await api.get('/inventory/by-location');
+      if (response.data && response.data.success) {
+        // 适配新接口结构
+        const locations = (response.data.data || []).map(loc => ({
+          location_code: loc.location_code,
+          items: loc.items || [],
+          // 可根据需要添加其它字段
+        }));
+        setLocations(locations);
+        setFilteredLocations(locations);
+        setLocationOptions(
+          locations.map(loc => ({
+            value: loc.location_code,
+            label: loc.location_code
+          }))
+        );
+      } else {
+        throw new Error(response.data.error_message || '获取库存失败');
       }
-
-      // 处理每个库位的数据
-      const locationData = {};
-      const quantities = new Set(); // 存储所有不同的数量值
-      
-      inventory.forEach(item => {
-        if (item.locations && Array.isArray(item.locations)) {
-          item.locations.forEach(loc => {
-            if (!loc.locationCode) return;
-            
-            if (!locationData[loc.locationCode]) {
-              locationData[loc.locationCode] = {
-                skus: new Set(),
-                products: new Set(),
-                totalQuantity: 0,
-                items: []
-              };
-            }
-
-            const locInfo = locationData[loc.locationCode];
-            
-            // 处理SKU
-            if (loc.skus && Array.isArray(loc.skus)) {
-              loc.skus.forEach(sku => {
-                if (sku.quantity > 0) {
-                  locInfo.skus.add(sku.code);
-                  quantities.add(sku.quantity); // 添加到数量集合
-                  
-                  // 获取真实的图片
-                  let imagePath = null;
-                  const product = productMap[item.product_id];
-                  if (product && product.skus && product.skus.length > 0) {
-                    const skuInfo = product.skus.find(s => s.code === sku.code);
-                    imagePath = skuInfo?.image_path || skuInfo?.image || product.image_path || product.image;
-                  }
-                  
-                  locInfo.items.push({
-                    code: sku.code,
-                    quantity: sku.quantity,
-                    image: imagePath,
-                    skuImage: imagePath,
-                    image_path: imagePath,
-                    color: sku.color,
-                    size: sku.size,
-                    sku_code: sku.code,
-                    sku_color: sku.color,
-                    sku_size: sku.size,
-                    productCode: item.productCode || item.code,
-                    product_id: item.product_id
-                  });
-                }
-              });
-            }
-
-            // 更新统计信息
-            locInfo.products.add(item.productCode || item.code);
-            locInfo.totalQuantity += loc.quantity || 0;
-          });
-        }
-      });
-
-      // 转换数量集合为排序的数组
-      const sortedQuantities = ['未指定', ...Array.from(quantities).sort((a, b) => a - b)];
-      setQuantityOptions(sortedQuantities);
-
-      // 合并库位信息（包括空货位）
-      const processedLocations = locationsList.map(loc => {
-        const locationInfo = locationData[loc.code];
-        return {
-        ...loc,
-          skuCount: locationInfo?.skus.size || 0,
-          productCount: locationInfo?.products.size || 0,
-          totalQuantity: locationInfo?.totalQuantity || 0,
-          items: locationInfo?.items || [],
-          inventoryItems: locationInfo?.items || [] // 为筛选逻辑添加这个字段
-        };
-      });
-
-      setLocations(processedLocations);
-      setFilteredLocations(processedLocations);
-      setLocationOptions(
-        processedLocations.map(loc => ({
-          value: loc.code,
-          label: `${loc.code}`
-        }))
-      );
     } catch (error) {
-      console.error('获取库位失败:', error);
-      message.error('获取库位失败');
+      message.error('获取库存失败: ' + (error.response?.data?.error_message || error.message));
     } finally {
       setLoading(false);
     }
@@ -407,58 +465,12 @@ const MobileLocationInventory = () => {
       setLoading(true);
       console.log(`开始获取库位 ${locationCode} 详情`);
       const res = await api.get(`/inventory/location/${locationCode}`);
-      console.log(`库位 ${locationCode} 详情获取成功:`, 
-        res.data.items ? `有 ${res.data.items.length} 件商品` : '无商品');
-      
-      // Make sure full product info is loaded with SKU data
-      if (res.data.items && res.data.items.length > 0) {
-        // Load product details for SKUs to make sure we get the SKU images
-        const productPromises = [];
-        const productIds = new Set();
-        
-        res.data.items.forEach(item => {
-          if (item.product_id && !productIds.has(item.product_id)) {
-            productIds.add(item.product_id);
-            productPromises.push(api.get(`/products/${item.product_id}`));
-          }
-        });
-        
-        if (productPromises.length > 0) {
-          try {
-            const productResults = await Promise.all(productPromises);
-            const products = productResults.map(result => result.data);
-            
-            // Update the productsInfo with full product data including SKUs
-            res.data.productsInfo = products;
-            
-            // Update each item with its corresponding SKU图片优先级
-            res.data.items = res.data.items.map(item => {
-              if (item.sku_code) {
-                const product = products.find(p => p._id === item.product_id || p.id === item.product_id);
-                if (product && product.skus && product.skus.length > 0) {
-                  const skuInfo = product.skus.find(sku => sku.code === item.sku_code);
-                  const skuImage = skuInfo?.image_path || skuInfo?.image;
-                  const productImage = product.image_path || product.image;
-                  return { ...item, image: skuImage || productImage || item.image };
-                }
-              }
-              // 主商品兜底
-              if (!item.image && products.length > 0) {
-                const product = products.find(p => p._id === item.product_id || p.id === item.product_id);
-                if (product) {
-                  return { ...item, image: product.image_path || product.image || item.image };
-                }
-              }
-              return item;
-            });
-          } catch (error) {
-            console.error('获取商品详情失败:', error);
-          }
-        }
+      console.log('location detail:', res.data);
+      if (res.data.data && res.data.data.items && res.data.data.items.length > 0) {
+        // ... existing code ...
       }
-      
-      setLocationDetail(res.data);
-      return res.data;
+      setLocationDetail(res.data.data); // 修正为只取data字段
+      return res.data.data;
     } catch (error) {
       console.error('获取库位详情失败:', error);
       if (error.response) {
@@ -479,27 +491,27 @@ const MobileLocationInventory = () => {
     // 关键词搜索
     if (keyword) {
       filtered = filtered.filter(loc => 
-        loc.code.toLowerCase().includes(keyword) ||
-        loc.name?.toLowerCase().includes(keyword)
+        (typeof loc.location_code === 'string' && loc.location_code.toLowerCase().includes(keyword)) ||
+        (typeof loc.name === 'string' && loc.name.toLowerCase().includes(keyword))
       );
     }
 
     // 应用筛选条件
     if (productCode) {
       filtered = filtered.filter(loc => 
-        loc.items?.some(item => item.code.includes(productCode))
+        loc.items?.some(item => typeof item.sku_code === 'string' && item.sku_code.includes(productCode))
       );
     }
 
     if (color !== '未指定') {
       filtered = filtered.filter(loc => 
-        loc.items?.some(item => item.code.includes(color))
+        loc.items?.some(item => typeof item.sku_code === 'string' && item.sku_code.includes(color))
       );
     }
 
     if (size !== '未指定') {
       filtered = filtered.filter(loc => 
-        loc.items?.some(item => item.code.includes(size))
+        loc.items?.some(item => typeof item.sku_code === 'string' && item.sku_code.includes(size))
       );
     }
 
@@ -510,7 +522,7 @@ const MobileLocationInventory = () => {
     }
 
     if (locationCode !== '未指定') {
-      filtered = filtered.filter(loc => loc.code === locationCode);
+      filtered = filtered.filter(loc => loc.location_code === locationCode);
     }
 
     if (locationStatus !== '未指定') {
@@ -545,8 +557,10 @@ const MobileLocationInventory = () => {
 
   // 显示库位详情
   const showLocationDetail = async (location) => {
-    setSelectedLocation(location);
-    const detail = await fetchLocationDetail(location.code);
+    // 补全 location_code 字段，确保后续弹窗有货位信息
+    const locCode = location.location_code || location.code;
+    setSelectedLocation({ ...location, location_code: locCode });
+    const detail = await fetchLocationDetail(locCode);
     if (detail) {
       setDetailVisible(true);
     }
@@ -554,8 +568,14 @@ const MobileLocationInventory = () => {
 
   // 开始编辑商品数量
   const startEdit = (item) => {
-    setEditingItem(item);
-    setEditQuantity(item.quantity);
+    let latestItem = null;
+    if (item && locationDetail && locationDetail.items) {
+      latestItem = locationDetail.items.find(
+        it => it.sku_code === item.sku_code
+      );
+    }
+    setEditingItem(latestItem || item);
+    setEditQuantity((latestItem || item).quantity);
     setEditMode(true);
   };
 
@@ -565,36 +585,24 @@ const MobileLocationInventory = () => {
 
     try {
       setLoading(true);
-      
       // 修复库位编码获取逻辑
-      const currentLocationCode = selectedLocation.code || locationDetail?.locationCode || selectedLocation.locationCode;
-      
-      console.log('保存编辑数量:', {
-        productId: editingItem.inventoryId || editingItem._id,
-        locationCode: currentLocationCode,
-        quantity: Number(editQuantity),
-        sku_code: editingItem.sku_code || '',
-        sku_color: editingItem.sku_color || '',
-        sku_size: editingItem.sku_size || ''
-      });
-
-      // 调用API保存数量修改
+      const currentLocationCode = selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code;
+      // 调用API保存数量修改，必须包含 stock_quantity 字段
       await api.post('/inventory/adjust', {
-        productId: editingItem.inventoryId || editingItem._id,
-        locationCode: currentLocationCode,
-        quantity: Number(editQuantity),
+        product_id: editingItem.product_id || editingItem.inventoryId || editingItem._id,
+        location_code: selectedLocation?.location_code || selectedLocation?.location_code || locationDetail?.location_code,
+        product_code: editingItem.product_code,
         sku_code: editingItem.sku_code || '',
         sku_color: editingItem.sku_color || '',
-        sku_size: editingItem.sku_size || ''
+        sku_size: editingItem.sku_size || '',
+        stock_quantity: Number(editQuantity),
+        quantity: Number(editQuantity)
       });
-
       // 更新本地数据
       const updatedDetail = await fetchLocationDetail(currentLocationCode);
       setLocationDetail(updatedDetail);
-      
       // 刷新库位列表以更新计数
       await fetchLocations();
-      
       message.success('数量已更新');
       setEditMode(false);
       setEditingItem(null);
@@ -612,7 +620,8 @@ const MobileLocationInventory = () => {
   // 显示转移弹窗
   const showTransferModal = (item) => {
     setEditingItem(item);
-    setTransferQuantity(Math.min(item.quantity, 1));
+    const qty = item.stock_quantity ?? item.quantity ?? 0;
+    setTransferQuantity(qty > 0 ? 1 : 0);
     setTargetLocation(null);
     setTransferVisible(true);
   };
@@ -633,7 +642,7 @@ const MobileLocationInventory = () => {
       setLoading(true);
       
       // 修复库位编码获取逻辑
-      const fromLocationCode = selectedLocation.code || locationDetail?.locationCode || selectedLocation.locationCode;
+      const fromLocationCode = selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code;
       
       console.log('开始转移商品:', {
         product_id: editingItem.product_id,
@@ -649,7 +658,7 @@ const MobileLocationInventory = () => {
         location_code: fromLocationCode, // 使用正确的参数名
         quantity: transferQuantity,
         ...(editingItem.sku_code ? {
-          skuCode: editingItem.sku_code, // 使用正确的参数名
+          sku_code: editingItem.sku_code, // 使用正确的参数名
           sku_color: editingItem.sku_color,
           sku_size: editingItem.sku_size
         } : {})
@@ -661,7 +670,7 @@ const MobileLocationInventory = () => {
         location_code: targetLocation, // 使用正确的参数名
         quantity: transferQuantity,
         ...(editingItem.sku_code ? {
-          skuCode: editingItem.sku_code, // 使用正确的参数名
+          sku_code: editingItem.sku_code, // 使用正确的参数名
           sku_color: editingItem.sku_color,
           sku_size: editingItem.sku_size
         } : {})
@@ -692,7 +701,7 @@ const MobileLocationInventory = () => {
   // 计算每个库位的商品款数
   const getLocationProductCount = (locationCode) => {
     // 在locations数组中查找匹配的库位
-    const location = locations.find(loc => loc.code === locationCode);
+    const location = locations.find(loc => loc.location_code === locationCode);
     // 如果找到库位且有productCount属性则返回，否则返回0
     return location && location.productCount ? location.productCount : 0;
   };
@@ -705,7 +714,7 @@ const MobileLocationInventory = () => {
       setLoading(true);
       
       // 修复库位编码获取逻辑
-      const fromLocationCode = selectedLocation.code || locationDetail?.locationCode || selectedLocation.locationCode;
+      const fromLocationCode = selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code;
       
       // 先从当前库位出库 - 修复API参数
       await api.post('/outbound/', {
@@ -713,7 +722,7 @@ const MobileLocationInventory = () => {
         location_code: fromLocationCode, // 使用正确的参数名
         quantity: item.quantity,
         ...(item.sku_code ? {
-          skuCode: item.sku_code, // 使用正确的参数名
+          sku_code: item.sku_code, // 使用正确的参数名
           sku_color: item.sku_color,
           sku_size: item.sku_size
         } : {})
@@ -725,7 +734,7 @@ const MobileLocationInventory = () => {
         location_code: "无货位", // 使用正确的参数名
         quantity: item.quantity,
         ...(item.sku_code ? {
-          skuCode: item.sku_code, // 使用正确的参数名
+          sku_code: item.sku_code, // 使用正确的参数名
           sku_color: item.sku_color,
           sku_size: item.sku_size
         } : {})
@@ -893,7 +902,7 @@ const MobileLocationInventory = () => {
       // 构建入库数据
       const inboundData = {
         product_id: product.id || product._id,
-        location_code: selectedLocation.code || locationDetail?.locationCode || selectedLocation.locationCode,
+        location_code: selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code,
         quantity: addQuantity
       };
       
@@ -908,12 +917,12 @@ const MobileLocationInventory = () => {
       await api.post('/inbound/', inboundData);
       
       message.success({
-        content: `已添加 ${product.name} 到 ${selectedLocation.code}`,
+        content: `已添加 ${product.name} 到 ${selectedLocation.location_code}`,
         icon: <span style={{ color: '#52c41a', marginRight: '8px' }}>✓</span>
       });
       
       // 更新本地数据
-      const updatedDetail = await fetchLocationDetail(selectedLocation.code);
+      const updatedDetail = await fetchLocationDetail(selectedLocation.location_code);
       setLocationDetail(updatedDetail);
       
       // 刷新库位列表
@@ -1010,10 +1019,10 @@ const MobileLocationInventory = () => {
   // 获取动态筛选选项
   const getDynamicFieldOptions = useMemo(() => {
     const options = {
-      productCode: new Set(),
+      product_code: new Set(),
       color: new Set(),
       sku_size: new Set(),
-      locationCode: new Set(),
+      location_code: new Set(),
       quantity: new Set()
     };
 
@@ -1025,11 +1034,11 @@ const MobileLocationInventory = () => {
           let matchesFilters = true;
 
           // 检查商品编号
-          if (fieldFilters.productCode.length > 0) {
+          if (fieldFilters.product_code.length > 0) {
             const baseCode = item.sku_code?.split('-')[0];
-            const matches = fieldFilters.productCode.some(code => 
+            const matches = fieldFilters.product_code.some(code => 
               (baseCode && code === baseCode) ||
-              (item.productCode && code === item.productCode) ||
+              (item.product_code && code === item.product_code) ||
               (item.code && code === item.code)
             );
             if (!matches) matchesFilters = false;
@@ -1065,8 +1074,8 @@ const MobileLocationInventory = () => {
           }
 
           // 检查货位
-          if (fieldFilters.locationCode.length > 0) {
-            if (!fieldFilters.locationCode.includes(loc.code)) {
+          if (fieldFilters.location_code.length > 0) {
+            if (!fieldFilters.location_code.includes(loc.location_code)) {
               matchesFilters = false;
             }
           }
@@ -1076,7 +1085,7 @@ const MobileLocationInventory = () => {
             // 添加商品编号选项 - 只提取基础商品编号，不包含颜色和尺码
             if (item.sku_code) {
               const baseCode = safeSplit(item.sku_code, '-')[0];
-              if (baseCode) options.productCode.add(baseCode);
+              if (baseCode) options.product_code.add(baseCode);
             }
             // 注意：不再添加完整的SKU编码作为商品编号
             // if (item.productCode) options.productCode.add(item.productCode);
@@ -1104,7 +1113,7 @@ const MobileLocationInventory = () => {
             }
 
             // 添加货位选项
-            if (loc.code) options.locationCode.add(loc.code);
+            if (loc.location_code) options.location_code.add(loc.location_code);
           }
         });
       }
@@ -1138,7 +1147,7 @@ const MobileLocationInventory = () => {
     const keyword = searchValue.trim().toLowerCase();
     if (keyword) {
       baseLocations = locations.filter(loc => 
-        loc.code.toLowerCase().includes(keyword) ||
+        loc.location_code.toLowerCase().includes(keyword) ||
         loc.name?.toLowerCase().includes(keyword)
       );
     }
@@ -1162,11 +1171,11 @@ const MobileLocationInventory = () => {
         let matchesFilters = true;
 
         // 检查商品编号
-        if (fieldFilters.productCode?.length > 0) {
+        if (fieldFilters.product_code?.length > 0) {
           const baseCode = item.sku_code ? safeSplit(item.sku_code, '-')[0] : null;
-          const matches = fieldFilters.productCode.some(code => 
+          const matches = fieldFilters.product_code.some(code => 
             (baseCode && code === baseCode) ||
-            (item.productCode && code === item.productCode) ||
+            (item.product_code && code === item.product_code) ||
             (item.code && code === item.code)
           );
           if (!matches) matchesFilters = false;
@@ -1202,8 +1211,8 @@ const MobileLocationInventory = () => {
         }
 
         // 检查货位
-        if (fieldFilters.locationCode?.length > 0) {
-          if (!fieldFilters.locationCode.includes(loc.code)) {
+        if (fieldFilters.location_code?.length > 0) {
+          if (!fieldFilters.location_code.includes(loc.location_code)) {
             matchesFilters = false;
           }
         }
@@ -1212,11 +1221,11 @@ const MobileLocationInventory = () => {
       });
 
       // 如果有商品级别的筛选条件，但没有匹配的商品，则排除此货位
-      const hasProductFilters = fieldFilters.productCode?.length > 0 || 
+      const hasProductFilters = fieldFilters.product_code?.length > 0 || 
                                fieldFilters.color?.length > 0 || 
                                fieldFilters.sku_size?.length > 0 || 
                                fieldFilters.quantity?.length > 0 ||
-                               fieldFilters.locationCode?.length > 0;
+                               fieldFilters.location_code?.length > 0;
       
       if (hasProductFilters && filteredInventoryItems.length === 0) {
         return null;
@@ -1300,11 +1309,11 @@ const MobileLocationInventory = () => {
   const clearFilters = () => {
     // 清除fieldFilters状态
     setFieldFilters({
-      productCode: [],
+      product_code: [],
       color: [],
       sku_size: [],
       quantity: [],
-      locationCode: []
+      location_code: []
     });
     
     // 清除显示状态
@@ -1332,8 +1341,8 @@ const MobileLocationInventory = () => {
     
     let options = [];
     switch(field) {
-      case 'productCode':
-        options = getDynamicFieldOptions.productCode || [];
+      case 'product_code':
+        options = getDynamicFieldOptions.product_code || [];
         break;
       case 'color':
         options = getDynamicFieldOptions.color || [];
@@ -1344,8 +1353,8 @@ const MobileLocationInventory = () => {
       case 'quantity':
         options = getDynamicFieldOptions.quantity || [];
         break;
-      case 'locationCode':
-        options = getDynamicFieldOptions.locationCode || [];
+      case 'location_code':
+        options = getDynamicFieldOptions.location_code || [];
         break;
       case 'locationStatus':
         options = ['有货', '无货'];
@@ -1365,14 +1374,14 @@ const MobileLocationInventory = () => {
       const newFilters = { ...prevFilters };
       
     switch(currentFilterField) {
-      case 'productCode':
+      case 'product_code':
           // 如果选项已存在则移除，否则添加（支持多选）
-          if (newFilters.productCode.includes(option)) {
-            newFilters.productCode = newFilters.productCode.filter(item => item !== option);
+          if (newFilters.product_code.includes(option)) {
+            newFilters.product_code = newFilters.product_code.filter(item => item !== option);
           } else {
-            newFilters.productCode = [...newFilters.productCode, option];
+            newFilters.product_code = [...newFilters.product_code, option];
           }
-          setProductCode(newFilters.productCode.length > 0 ? newFilters.productCode.join(', ') : '未指定');
+          setProductCode(newFilters.product_code.length > 0 ? newFilters.product_code.join(', ') : '未指定');
         break;
       case 'color':
           if (newFilters.color.includes(option)) {
@@ -1398,13 +1407,13 @@ const MobileLocationInventory = () => {
           }
           setQuantity(newFilters.quantity.length > 0 ? newFilters.quantity.join(', ') : '未指定');
         break;
-      case 'locationCode':
-          if (newFilters.locationCode.includes(option)) {
-            newFilters.locationCode = newFilters.locationCode.filter(item => item !== option);
+      case 'location_code':
+          if (newFilters.location_code.includes(option)) {
+            newFilters.location_code = newFilters.location_code.filter(item => item !== option);
           } else {
-            newFilters.locationCode = [...newFilters.locationCode, option];
+            newFilters.location_code = [...newFilters.location_code, option];
           }
-          setLocationCode(newFilters.locationCode.length > 0 ? newFilters.locationCode.join(', ') : '未指定');
+          setLocationCode(newFilters.location_code.length > 0 ? newFilters.location_code.join(', ') : '未指定');
         break;
       case 'locationStatus':
         setLocationStatus(option);
@@ -1422,10 +1431,17 @@ const MobileLocationInventory = () => {
   };
 
   // 显示入库/出库弹窗
-  const showInoutModal = (type, locationCode) => {
+  const showInoutModal = (type, locationCode, item) => {
     setInoutType(type);
     setSelectedLocation({ code: locationCode });
     setInoutQuantity(1);
+    let latestItem = null;
+    if (item && locationDetail && locationDetail.items) {
+      latestItem = locationDetail.items.find(
+        it => it.sku_code === item.sku_code
+      );
+    }
+    setInoutItem(latestItem || item || null);
     setInoutVisible(true);
   };
 
@@ -1508,17 +1524,17 @@ const MobileLocationInventory = () => {
       const endpoint = inoutType === 'in' ? '/inbound/' : '/outbound/';
       
       // 构建基本请求数据 - 修复库位编码获取逻辑
-      const locationCode = selectedLocation.code || locationDetail?.locationCode || selectedLocation.locationCode;
+      const locationCode = selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code;
       const requestData = {
         location_code: locationCode,
         quantity: inoutQuantity,
-        productCode: inoutItem?.sku_code || inoutItem?.code || inoutItem?.productCode,
+        product_code: inoutItem?.sku_code || inoutItem?.code || inoutItem?.product_code,
         notes: `${inoutType === 'in' ? '入库' : '出库'}操作 - 货位: ${locationCode}`
       };
       
       // 如果有选中的SKU
       if (inoutItem) {
-        requestData.skuCode = inoutItem.sku_code;
+        requestData.sku_code = inoutItem.sku_code;
         requestData.sku_color = inoutItem.color || inoutItem.sku_color;
         requestData.sku_size = inoutItem.sku_size || inoutItem.size;
       }
@@ -1545,8 +1561,11 @@ const MobileLocationInventory = () => {
     }
   };
 
+  // 在主页面组件里调用
+  useScrollAllImageRowsToRight();
+
   return (
-    <div className="page-container">
+    <>
       {/* 顶部导航栏 */}
       <MobileNavBar currentPage="locationInventory" />
       {/* 搜索栏和筛选按钮 */}
@@ -1594,95 +1613,34 @@ const MobileLocationInventory = () => {
           <div style={{ textAlign: 'center', padding: '32px 16px' }}>加载中...</div>
         ) : (currentSortField ? sortedItems : filteredItems).length > 0 ? (
           (currentSortField ? sortedItems : filteredItems).map(loc => {
-            // 判断是否为空货位
-            const isEmpty = (loc.totalQuantity || 0) === 0;
-            
+            const location_code = loc.location_code || loc.code;
+            if (!location_code) console.warn('库位缺少location_code:', loc);
+            const items = loc.items || [];
+            const totalQuantity = items.reduce((sum, it) => sum + (it.stock_quantity || 0), 0);
+            const skuCount = items.length;
+            const productCount = new Set(items.map(it => it.product_code)).size;
+            const isEmpty = totalQuantity === 0;
             return (
-              <div key={loc.code} className={`location-item ${isEmpty ? 'empty-location' : ''}`} onClick={() => showLocationDetail(loc)}>
-              <div className="location-info-section">
-                <div className="location-code">{loc.code}</div>
+              <div key={location_code} className={`location-item ${isEmpty ? 'empty-location' : ''}`} onClick={() => {
+                console.log('点击库位:', { ...loc, location_code });
+                showLocationDetail({ ...loc, location_code });
+              }}>
+                <div className="location-info-section">
+                  <div className="location-code">{loc.location_code}</div>
                   {!isEmpty && (
                     <>
-                <div className="location-info">
-                  <span>{loc.productCount}种商品</span>
-                  <span>{loc.skuCount}个SKU</span>
-                </div>
-                <div className="location-total">合计{loc.totalQuantity}件</div>
+                      <div className="location-info">
+                        <span>{productCount}种商品</span>
+                        <span>{skuCount}个SKU</span>
+                      </div>
+                      <div className="location-total">合计{totalQuantity}件</div>
                     </>
                   )}
-              </div>
-              {loc.inventoryItems && loc.inventoryItems.length > 0 && (
-                <div className="location-images-section">
-                  {loc.inventoryItems
-                    .sort((a, b) => (a.quantity || 0) - (b.quantity || 0)) // 按数量升序排列，数量少的在左边，数量多的在右边
-                    .map((item, index) => {
-                    // 生成图片URL - 使用SKU code或者产品code
-                    const imageCode = item.sku_code || item.code || item.productCode || '129092';
-                    const imagePath = item.image || item.skuImage || item.image_path;
-                    
-                    // 提取尺码信息
-                    const size = item.sku_size || item.size || 
-                      (item.sku_code ? safeSplit(item.sku_code, '-')[2] : '') || 'M';
-                    
-                    return (
-                      <div key={`${item.sku_code || item.code || index}`} className="sku-item">
-                        <div 
-                          style={{ 
-                            width: '100%', 
-                            height: '100%', 
-                            border: '1px solid #ddd',
-                            borderRadius: 4,
-                            overflow: 'hidden',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: '#f5f5f5',
-                            position: 'relative'
-                          }}
-                        >
-                          {imagePath ? (
-                            <img 
-                              src={getFullImageUrl(imagePath)} 
-                              alt={item.sku_code || item.code}
-                              style={{ 
-                                width: '100%', 
-                                height: '100%', 
-                                objectFit: 'contain'
-                              }}
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.nextSibling.style.display = 'flex';
-                              }}
-                            />
-                          ) : null}
-                          <div 
-                            style={{ 
-                              width: '100%', 
-                              height: '100%', 
-                              backgroundColor: '#f0f0f0',
-                              display: imagePath ? 'none' : 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '10px',
-                              color: '#666',
-                              textAlign: 'center',
-                              lineHeight: '12px',
-                              position: 'absolute',
-                              top: 0,
-                              left: 0
-                            }}
-                          >
-                            {imagePath ? '无图' : imageCode.substring(0, 6)}
-                          </div>
-                        </div>
-                        <div className="sku-size-tag">{size}</div>
-                        <div className="sku-quantity">{item.quantity || 0}</div>
-                      </div>
-                    );
-                  })}
                 </div>
-              )}
-            </div>
+                {items.length > 0 && (
+                  <LocationImageRow items={items} getFullImageUrl={getFullImageUrl} />
+                )}
+              </div>
             );
           })
         ) : (
@@ -1704,7 +1662,7 @@ const MobileLocationInventory = () => {
             <span>筛选</span>
           </div>
           <div className="filter-content">
-            <div className="filter-item" onClick={() => showFilterOptions('productCode', '商品编号')}>
+            <div className="filter-item" onClick={() => showFilterOptions('product_code', '商品编号')}>
               <div className="filter-label">商品编号：</div>
               <div className="filter-value">
                 <span>{productCode}</span>
@@ -1732,7 +1690,7 @@ const MobileLocationInventory = () => {
                 <RightOutlined />
               </div>
             </div>
-            <div className="filter-item" onClick={() => showFilterOptions('locationCode', '货位')}>
+            <div className="filter-item" onClick={() => showFilterOptions('location_code', '货位')}>
               <div className="filter-label">货位：</div>
               <div className="filter-value">
                 <span>{locationCode}</span>
@@ -1772,11 +1730,11 @@ const MobileLocationInventory = () => {
         <div className="filter-option-popup">
           <div className="filter-header">
             <CloseOutlined onClick={() => setFilterOptionVisible(false)} />
-            <span>选择{currentFilterField === 'productCode' ? '商品编号' : 
+            <span>选择{currentFilterField === 'product_code' ? '商品编号' : 
                         currentFilterField === 'color' ? '颜色' :
                         currentFilterField === 'size' ? '尺码' :
                         currentFilterField === 'quantity' ? '数量' :
-                        currentFilterField === 'locationCode' ? '货位' :
+                        currentFilterField === 'location_code' ? '货位' :
                         currentFilterField === 'locationStatus' ? '货位状态' :
                         currentFilterField === 'quantityRange' ? '件数区间' : '选项'}</span>
           </div>
@@ -1788,8 +1746,8 @@ const MobileLocationInventory = () => {
               // 检查当前选项是否已被选中
               let isSelected = false;
               switch(currentFilterField) {
-                case 'productCode':
-                  isSelected = fieldFilters.productCode.includes(option);
+                case 'product_code':
+                  isSelected = fieldFilters.product_code.includes(option);
                   break;
                 case 'color':
                   isSelected = fieldFilters.color.includes(option);
@@ -1800,8 +1758,8 @@ const MobileLocationInventory = () => {
                 case 'quantity':
                   isSelected = fieldFilters.quantity.includes(option);
                   break;
-                case 'locationCode':
-                  isSelected = fieldFilters.locationCode.includes(option);
+                case 'location_code':
+                  isSelected = fieldFilters.location_code.includes(option);
                   break;
               }
               
@@ -1826,7 +1784,7 @@ const MobileLocationInventory = () => {
 
       {/* 货位详情弹窗 */}
       <Modal
-        title={`库位详情: ${selectedLocation?.code || selectedLocation?.name || '未知库位'}`}
+        title={`库位详情: ${selectedLocation?.location_code || selectedLocation?.code || selectedLocation?.name || '未知库位'}`}
         open={detailVisible}
         onCancel={() => setDetailVisible(false)}
         footer={[
@@ -1848,321 +1806,74 @@ const MobileLocationInventory = () => {
         className="location-detail-modal"
       >
         {locationDetail && (
-          <div 
-            style={{ 
-              minHeight: '500px',
-              padding: '8px 0',
-              touchAction: 'pan-y'
-            }}
-          >
-            {locationDetail.inventoryItems && locationDetail.inventoryItems.length > 0 ? (
-              locationDetail.inventoryItems.map((item, index) => {
-                const imageCode = item.sku_code || item.code || item.productCode || '129092';
-                const skuInfo = item.sku_code ? safeSplit(item.sku_code, '-') : [];
-                const color = item.color || item.sku_color || (skuInfo[1] || '');
-                const size = item.sku_size || item.size || (skuInfo[2] || '');
-                const imagePath = item.image || item.skuImage || item.image_path;
-                
+          locationDetail.items && locationDetail.items.length > 0 ? (
+            <div style={{margin:'12px 0'}}>
+              {locationDetail.items.map((item, index) => {
+                const imagePath = item.image_path || item.image;
+                const skuKey = item.sku_code || item.product_id || index;
+                const isExpanded = expandedSkuKey === skuKey;
                 return (
-                  <Card key={index} style={{ marginBottom: 16 }}>
-                    <div style={{ display: 'flex', gap: 16 }}>
-                      <div style={{ flexShrink: 0 }}>
-                        <div 
-                          style={{ 
-                            width: 80, 
-                            height: 100, 
-                            border: '1px solid #ddd',
-                            borderRadius: 4,
-                            overflow: 'hidden',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: '#f5f5f5',
-                            cursor: imagePath ? 'pointer' : 'default'
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (imagePath) {
-                              showImagePreview(imagePath, item.sku_code || item.code);
-                            }
-                          }}
-                        >
-                          {imagePath ? (
-                            <img 
-                              src={getFullImageUrl(imagePath)} 
-                              alt={item.sku_code || item.code}
-                              style={{ 
-                                width: '100%', 
-                                height: '100%', 
-                                objectFit: 'contain'
-                              }}
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.nextSibling.style.display = 'flex';
-                              }}
-                            />
-                          ) : null}
-                          <div 
-                            style={{ 
-                              width: '100%', 
-                              height: '100%', 
-                              backgroundColor: '#f0f0f0',
-                              display: imagePath ? 'none' : 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '10px',
-                              color: '#666',
-                              textAlign: 'center',
-                              lineHeight: '12px',
-                              position: 'absolute',
-                              top: 0,
-                              left: 0
-                            }}
-                          >
-                            {imagePath ? '无图' : imageCode.substring(0, 6)}
-                          </div>
-                        </div>
-                      </div>
-                      <div 
-                        style={{ flex: 1, cursor: 'pointer' }}
-                        onClick={() => {
-                          // 切换展开状态：如果当前SKU已展开则折叠，否则展开当前SKU
-                          const skuKey = `${locationDetail.code}-${item.sku_code || item.code}`;
-                          setExpandedSkuKey(expandedSkuKey === skuKey ? null : skuKey);
-                        }}
-                      >
-                        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                          <Tag>{item.productCode || imageCode}</Tag>
-                          <Tag>{item.productCode || imageCode}</Tag>
-                        </div>
-                        <div style={{ marginBottom: 8 }}>
-                          <Tag color="blue">SKU: {item.sku_code || item.code}</Tag>
-                        </div>
-                        <div style={{ color: '#666', marginBottom: 8 }}>
-                          颜色: {color} 尺寸: {size}
-                        </div>
-                        <div style={{ color: '#1890ff', fontWeight: 'bold', marginBottom: 12 }}>
-                          数量: {item.quantity || 0} 件
-                        </div>
-                        
-                        {/* 只有当前SKU展开时才显示操作按钮 */}
-                        {expandedSkuKey === `${locationDetail.code}-${item.sku_code || item.code}` && (
-                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start', marginLeft: '-96px' }}>
-                            <Button 
-                              size="small"
-                              style={{ backgroundColor: '#fadb14', borderColor: '#fadb14', color: '#000' }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                startEdit(item);
-                              }}
-                            >
-                              修改
-                            </Button>
-                            <Button 
-                              size="small"
-                              style={{ backgroundColor: '#52c41a', borderColor: '#52c41a', color: '#fff' }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                showTransferModal(item);
-                              }}
-                            >
-                              转移
-                            </Button>
-                            <Button 
-                              size="small"
-                              danger
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                moveToNoLocation(item);
-                              }}
-                            >
-                              清库位
-                            </Button>
-                            <Button 
-                              type="primary" 
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setInoutItem(item);
-                                showInoutModal('in', locationDetail.code);
-                              }}
-                            >
-                              入库
-                            </Button>
-                            <Button 
-                              danger 
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setInoutItem(item);
-                                showInoutModal('out', locationDetail.code);
-                              }}
-                            >
-                              出库
-                            </Button>
-                          </div>
+                  <div
+                    key={skuKey}
+                    style={{
+                      border: '1px solid #eee',
+                      borderRadius: 12,
+                      marginBottom: 8,
+                      padding: 8,
+                      background: '#fff',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      alignItems: 'center',
+                      flexDirection: 'column',
+                      justifyContent: 'flex-start',
+                      transition: 'min-height 0.2s',
+                      minHeight: isExpanded ? undefined : 100,
+                      maxHeight: isExpanded ? undefined : 100,
+                      height: isExpanded ? 'auto' : 100
+                    }}
+                    onClick={() => setExpandedSkuKey(isExpanded ? null : skuKey)}
+                  >
+                    <div style={{display: 'flex', gap: 8, alignItems: 'center', width: '100%', minHeight: 100, overflow: 'hidden'}}>
+                      <div style={{width: 100, height: 100, background: '#f5f5f5', borderRadius: 8, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
+                        {imagePath ? (
+                          <img src={getFullImageUrl ? getFullImageUrl(imagePath) : imagePath} alt={item.sku_code} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                        ) : (
+                          <span style={{color: '#bbb', fontSize: 12}}>无图</span>
                         )}
                       </div>
-                    </div>
-                  </Card>
-                );
-              })
-            ) : (locationDetail.items && locationDetail.items.length > 0) ? (
-              locationDetail.items.map((item, index) => {
-                const imageCode = item.sku_code || item.code || item.productCode || '129092';
-                const skuInfo = item.sku_code ? safeSplit(item.sku_code, '-') : [];
-                const color = item.color || item.sku_color || (skuInfo[1] || '');
-                const size = item.sku_size || item.size || (skuInfo[2] || '');
-                const imagePath = item.image || item.skuImage || item.image_path;
-                
-                return (
-                  <Card key={index} style={{ marginBottom: 16 }}>
-                    <div style={{ display: 'flex', gap: 16 }}>
-                      <div style={{ flexShrink: 0 }}>
-                        <div 
-                          style={{ 
-                            width: 80, 
-                            height: 100, 
-                            border: '1px solid #ddd',
-                            borderRadius: 4,
-                            overflow: 'hidden',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: '#f5f5f5',
-                            cursor: imagePath ? 'pointer' : 'default'
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (imagePath) {
-                              showImagePreview(imagePath, item.sku_code || item.code);
-                            }
-                          }}
-                        >
-                          {imagePath ? (
-                            <img 
-                              src={getFullImageUrl(imagePath)} 
-                              alt={item.sku_code || item.code}
-                              style={{ 
-                                width: '100%', 
-                                height: '100%', 
-                                objectFit: 'contain'
-                              }}
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.nextSibling.style.display = 'flex';
-                              }}
-                            />
-                          ) : null}
-                          <div 
-                            style={{ 
-                              width: '100%', 
-                              height: '100%', 
-                              backgroundColor: '#f0f0f0',
-                              display: imagePath ? 'none' : 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '10px',
-                              color: '#666',
-                              textAlign: 'center',
-                              lineHeight: '12px',
-                              position: 'absolute',
-                              top: 0,
-                              left: 0
-                            }}
-                          >
-                            {imagePath ? '无图' : imageCode.substring(0, 6)}
-                          </div>
+                      <div style={{flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.2, display: 'flex', flexDirection: 'column', justifyContent: 'center'}}>
+                        <div style={{display: 'flex', gap: 4, marginBottom: 2, flexWrap: 'wrap'}}>
+                          <Tag style={{padding: '0 4px', fontSize: 12}}>{item.product_code}</Tag>
+                          <Tag style={{padding: '0 4px', fontSize: 12}}>{item.product_name}</Tag>
+                        </div>
+                        <div style={{marginBottom: 2, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                          <Tag color="blue" style={{padding: '0 4px', fontSize: 12}}>SKU: {item.sku_code}</Tag>
+                        </div>
+                        <div style={{color: '#666', fontSize: 12, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                          颜色: {item.sku_color} 尺寸: {item.sku_size}
+                        </div>
+                        <div style={{color: '#1890ff', fontWeight: 'bold', fontSize: 13, whiteSpace: 'nowrap'}}>
+                          数量: {item.stock_quantity} 件
                         </div>
                       </div>
-                      <div 
-                        style={{ flex: 1, cursor: 'pointer' }}
-                        onClick={() => {
-                          // 切换展开状态：如果当前SKU已展开则折叠，否则展开当前SKU
-                          const skuKey = `${locationDetail.code}-${item.sku_code || item.code}`;
-                          setExpandedSkuKey(expandedSkuKey === skuKey ? null : skuKey);
-                        }}
-                      >
-                        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                          <Tag>{item.productCode || imageCode}</Tag>
-                          <Tag>{item.productCode || imageCode}</Tag>
-                        </div>
-                        <div style={{ marginBottom: 8 }}>
-                          <Tag color="blue">SKU: {item.sku_code || item.code}</Tag>
-                        </div>
-                        <div style={{ color: '#666', marginBottom: 8 }}>
-                          颜色: {color} 尺寸: {size}
-                        </div>
-                        <div style={{ color: '#1890ff', fontWeight: 'bold', marginBottom: 12 }}>
-                          数量: {item.quantity || 0} 件
-                        </div>
-                        
-                        {/* 只有当前SKU展开时才显示操作按钮 */}
-                        {expandedSkuKey === `${locationDetail.code}-${item.sku_code || item.code}` && (
-                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start', marginLeft: '-96px' }}>
-                            <Button 
-                              size="small"
-                              style={{ backgroundColor: '#fadb14', borderColor: '#fadb14', color: '#000' }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                startEdit(item);
-                              }}
-                            >
-                              修改
-                            </Button>
-                            <Button 
-                              size="small"
-                              style={{ backgroundColor: '#52c41a', borderColor: '#52c41a', color: '#fff' }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                showTransferModal(item);
-                              }}
-                            >
-                              转移
-                            </Button>
-                            <Button 
-                              size="small"
-                              danger
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                moveToNoLocation(item);
-                              }}
-                            >
-                              清库位
-                            </Button>
-                            <Button 
-                              type="primary" 
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setInoutItem(item);
-                                showInoutModal('in', locationDetail.code);
-                              }}
-                            >
-                              入库
-                            </Button>
-                            <Button 
-                              danger 
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setInoutItem(item);
-                                showInoutModal('out', locationDetail.code);
-                              }}
-                            >
-                              出库
-                            </Button>
-                          </div>
-                        )}
-                      </div>
                     </div>
-                  </Card>
+                    {isExpanded && (
+                      <div style={{display: 'flex', flexDirection: 'row', gap: 8, marginTop: 4, width: '100%', justifyContent: 'flex-start'}} onClick={e => e.stopPropagation()}>
+                        <Button size="small" style={{backgroundColor: '#fadb14', borderColor: '#fadb14', color: '#000'}} onClick={() => startEdit(item)}>修改</Button>
+                        <Button size="small" style={{backgroundColor: '#52c41a', borderColor: '#52c41a', color: '#fff'}} onClick={() => showTransferModal(item)}>转移</Button>
+                        <Button size="small" danger onClick={() => moveToNoLocation(item)}>清库位</Button>
+                        <Button type="primary" size="small" onClick={() => { setInoutItem(item); showInoutModal('in', locationDetail.location_code, item); }}>入库</Button>
+                        <Button danger size="small" onClick={() => { setInoutItem(item); showInoutModal('out', locationDetail.location_code, item); }}>出库</Button>
+                      </div>
+                    )}
+                  </div>
                 );
-              })
-            ) : (
-              <Empty description="该货位暂无库存" />
-            )}
-          </div>
+              })}
+            </div>
+          ) : (
+            <Empty description="该货位暂无库存" />
+          )
         )}
       </Modal>
 
@@ -2182,7 +1893,7 @@ const MobileLocationInventory = () => {
             {inoutItem ? (
               <div>
                 <p><strong>SKU:</strong> <Tag color="blue">{inoutItem.sku_code || inoutItem.code}</Tag></p>
-                <p><strong>当前库存:</strong> {inoutItem.quantity || 0} 件</p>
+                <p><strong>当前库存:</strong> {(inoutItem.stock_quantity ?? inoutItem.quantity ?? 0)} 件</p>
               </div>
             ) : (
               <p>对整个货位进行操作</p>
@@ -2223,7 +1934,7 @@ const MobileLocationInventory = () => {
           <div>
             <p><strong>商品:</strong> {editingItem.sku_code || editingItem.code}</p>
             <p><strong>当前库位:</strong> {selectedLocation?.code}</p>
-            <p><strong>当前数量:</strong> {editingItem.quantity} 件</p>
+            <p><strong>当前数量:</strong> {(editingItem?.stock_quantity ?? editingItem?.quantity ?? 0)} 件</p>
             
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', marginBottom: 8 }}>
@@ -2254,7 +1965,7 @@ const MobileLocationInventory = () => {
                 </Option>
                 {/* 现有库位选项 */}
                 {locationOptions
-                  .filter(loc => loc.value !== (selectedLocation?.code || locationDetail?.locationCode)) // 排除当前库位
+                  .filter(loc => loc.value !== (selectedLocation?.code || locationDetail?.location_code)) // 排除当前库位
                   .map(loc => (
                   <Option key={loc.value} value={loc.value}>
                     {loc.value} {loc.label && loc.label !== loc.value ? `(${loc.label})` : ''}
@@ -2297,7 +2008,7 @@ const MobileLocationInventory = () => {
           <div>
             <p><strong>商品:</strong> {editingItem.sku_code || editingItem.code}</p>
             <p><strong>货位:</strong> {selectedLocation?.code}</p>
-            <p><strong>当前数量:</strong> {editingItem.quantity} 件</p>
+            <p><strong>当前数量:</strong> {(editingItem.stock_quantity ?? editingItem.quantity ?? 0)} 件</p>
             
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', marginBottom: 8 }}>
@@ -2561,7 +2272,7 @@ const MobileLocationInventory = () => {
           </div>
         )}
       </Modal>
-    </div>
+    </>
   );
 };
 
