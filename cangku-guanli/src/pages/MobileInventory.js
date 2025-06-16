@@ -35,6 +35,8 @@ const MobileInventory = () => {
   const [selectedLocation, setSelectedLocation] = useState('');
   // 用于存储每个商品图片区的ref
   const imgListRefs = useRef({});
+  const [sortKey, setSortKey] = useState('');
+  const [sortOrder, setSortOrder] = useState('desc'); // desc/asc
 
   useEffect(() => {
     loadInventory();
@@ -237,10 +239,36 @@ const MobileInventory = () => {
     });
   };
 
+  const handleSort = (key) => {
+    let order = sortOrder;
+    if (sortKey === key) {
+      order = order === 'desc' ? 'asc' : 'desc';
+      setSortOrder(order);
+    } else {
+      setSortKey(key);
+      setSortOrder('desc');
+      order = 'desc';
+    }
+    let sorted = [...filteredProducts];
+    sorted.sort((a, b) => {
+      let aVal, bVal;
+      if (key === 'product_code') {
+        aVal = a.product_code || '';
+        bVal = b.product_code || '';
+        return order === 'desc' ? bVal.localeCompare(aVal, 'zh-Hans-CN') : aVal.localeCompare(bVal, 'zh-Hans-CN');
+      } else {
+        aVal = a[key] ?? 0;
+        bVal = b[key] ?? 0;
+        return order === 'desc' ? bVal - aVal : aVal - bVal;
+      }
+    });
+    setFilteredProducts(sorted);
+  };
+
   return (
     <div className="page-container" style={{ padding: 16 }}>
       <MobileNavBar currentPage="inventory" />
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 2 }}>
         <Input
           placeholder="商品编码或名称"
           value={searchValue}
@@ -254,6 +282,37 @@ const MobileInventory = () => {
           }
           style={{ width: '100%' }}
         />
+      </div>
+      {/* 排序按钮组，放在搜索框下方，4个按钮平均分配宽度 */}
+      <div style={{ display: 'flex', width: '100%', marginBottom: 6, marginTop: 0, gap: 6, height: 30, alignItems: 'center' }}>
+        <Button
+          type={sortKey === 'product_code' ? 'primary' : 'default'}
+          onClick={() => handleSort('product_code')}
+          style={{ flex: 1, height: 30, lineHeight: '20px', fontSize: 13, padding: 0 }}
+        >
+          商品编码{sortKey === 'product_code' ? (sortOrder === 'desc' ? ' ↓' : ' ↑') : ''}
+        </Button>
+        <Button
+          type={sortKey === 'total_quantity' ? 'primary' : 'default'}
+          onClick={() => handleSort('total_quantity')}
+          style={{ flex: 1, height: 30, lineHeight: '20px', fontSize: 13, padding: 0 }}
+        >
+          商品库存{sortKey === 'total_quantity' ? (sortOrder === 'desc' ? ' ↓' : ' ↑') : ''}
+        </Button>
+        <Button
+          type={sortKey === 'sku_count' ? 'primary' : 'default'}
+          onClick={() => handleSort('sku_count')}
+          style={{ flex: 1, height: 30, lineHeight: '20px', fontSize: 13, padding: 0 }}
+        >
+          SKU数量{sortKey === 'sku_count' ? (sortOrder === 'desc' ? ' ↓' : ' ↑') : ''}
+        </Button>
+        <Button
+          type={sortKey === 'color_count' ? 'primary' : 'default'}
+          onClick={() => handleSort('color_count')}
+          style={{ flex: 1, height: 30, lineHeight: '20px', fontSize: 13, padding: 0 }}
+        >
+          颜色数量{sortKey === 'color_count' ? (sortOrder === 'desc' ? ' ↓' : ' ↑') : ''}
+        </Button>
       </div>
       <List
         loading={loading}
