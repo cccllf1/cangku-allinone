@@ -116,6 +116,9 @@ const MobileProductManage = () => {
   // 新增：用于记录删除模态框中的产品
   const [deleteModalProduct, setDeleteModalProduct] = useState(null);
 
+  // 新增：用于记录当前展开的货位
+  const [expandedLocationKey, setExpandedLocationKey] = useState(null);
+
   // 加载所有产品和自定义设置
   useEffect(() => {
     // fetchProducts(); // 已由 /inventory/by-product 代替
@@ -1303,65 +1306,42 @@ const MobileProductManage = () => {
                                     </div>
                                   )}
                                   {locOptions.map(loc => {
-                                    const sel = selectedLoc === loc.location_code;
+                                    const isExpanded = expandedLocationKey === loc.location_code;
                                     return (
-                                      <div
-                                        key={loc.location_code}
-                                        onClick={() => {
-                                          setRowLocationMap(prev => ({ ...prev, [size.code]: loc.location_code }));
-                                          setActionVisibleKey(showBtns ? null : keyId);
-                                        }}
-                                        style={{
-                                          display: 'flex',
-                                          justifyContent: 'space-between',
-                                          padding: '4px 8px',
-                                          background: sel ? '#e6f7ff' : '#f5f5f5',
-                                          border: '1px solid #91d5ff',
-                                          borderRadius: 4,
-                                          cursor: 'pointer'
-                                        }}
-                                      >
-                                        <span>库位：{loc.location_code}</span>
-                                        <span style={{ color: '#52c41a' }}>{loc.stock_quantity}件</span>
+                                      <div key={loc.location_code} style={{ marginBottom: 8 }}>
+                                        {/* 货位信息一行 */}
+                                        <div
+                                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', padding: '4px 8px', background: isExpanded ? '#e6f7ff' : '#f5f5f5', border: '1px solid #91d5ff', borderRadius: 4 }}
+                                          onClick={e => { e.stopPropagation(); setExpandedLocationKey(isExpanded ? null : loc.location_code); }}
+                                        >
+                                          <span>库位：{loc.location_code}</span>
+                                          <span style={{ color: '#52c41a', marginLeft: 8 }}>{loc.stock_quantity}件</span>
+                                        </div>
+                                        {/* 按钮区，展开时显示（无货位也允许） */}
+                                        {isExpanded && (
+                                          <div style={{ marginTop: 8, display: 'flex', gap: 8, justifyContent: 'center' }}>
+                                            <Button
+                                              type="primary"
+                                              style={{ background: '#52c41a', borderColor: '#52c41a' }}
+                                              size="small"
+                                              onClick={e => { e.stopPropagation(); showWarehouseAction('inbound', { code: size.code, color: group.color, size: size.size }, loc.location_code); }}
+                                            >入库</Button>
+                                            <Button
+                                              danger
+                                              size="small"
+                                              onClick={e => { e.stopPropagation(); showWarehouseAction('outbound', { code: size.code, color: group.color, size: size.size }, loc.location_code); }}
+                                            >出库</Button>
+                                            <Button
+                                              size="small"
+                                              style={{ background: '#fadb14', borderColor: '#fadb14', color: '#000' }}
+                                              onClick={e => { e.stopPropagation(); showWarehouseAction('adjust', { code: size.code, color: group.color, size: size.size, currentStock: loc.stock_quantity }, loc.location_code); }}
+                                            >盘点</Button>
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   })}
                                 </div>
-
-                                {/* 按钮组 */}
-                                {showBtns && (
-                                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 8 }}>
-                                    <Button
-                                      type="primary"
-                                      style={{ background: '#52c41a', borderColor: '#52c41a' }}
-                                      size="small"
-                                      onClick={() => showWarehouseAction('inbound', {
-                                        code: size.code,
-                                        color: group.color,
-                                        size: size.size
-                                      }, selectedLoc)}
-                                    >入库</Button>
-                                    <Button
-                                      danger
-                                      size="small"
-                                      onClick={() => showWarehouseAction('outbound', {
-                                        code: size.code,
-                                        color: group.color,
-                                        size: size.size
-                                      }, selectedLoc)}
-                                    >出库</Button>
-                                    <Button
-                                      size="small"
-                                      style={{ background: '#fadb14', borderColor: '#fadb14', color: '#000' }}
-                                      onClick={() => showWarehouseAction('adjust', {
-                                        code: size.code,
-                                        color: group.color,
-                                        size: size.size,
-                                        currentStock: selectedLocObj.stock_quantity
-                                      }, selectedLoc)}
-                                    >盘点</Button>
-                                  </div>
-                                )}
                               </div>
                             )}
                           </div>

@@ -1601,8 +1601,11 @@ const MobileLocationInventory = () => {
   // 1. 在组件内定义唯一筛选项数据源
   const allItems = useMemo(() => locations.flatMap(loc => loc.items || []), [locations]);
 
+  // 渲染货位列表前，先过滤 locations：
+  const displayLocations = locations.filter(loc => loc.location_code && loc.location_code !== 'DEFAULT');
+
   return (
-    <>
+    <div className="page-container" style={{ padding: 16 }}>
       {/* 顶部导航栏 */}
       <MobileNavBar currentPage="locationInventory" />
       {/* 搜索栏和筛选按钮 */}
@@ -1667,13 +1670,11 @@ const MobileLocationInventory = () => {
                   {!isEmpty && (
                     <>
                       <div style={{ lineHeight: 1.2, margin: '2px 0', fontSize: 13 }}>
-                        <span style={{ color: '#888' }}>商品数：</span>
+                        <span style={{ color: '#888' }}>商品</span>
                         <span style={{ color: '#1890ff', fontWeight: 600 }}>{loc.productCount}</span>
-                        <span style={{ color: '#888', marginLeft: 2 }}>种</span>
                         <span style={{ margin: '0 6px', color: '#ccc' }}>|</span>
                         <span style={{ color: '#888' }}>SKU：</span>
                         <span style={{ color: '#52c41a', fontWeight: 600 }}>{loc.skuCount}</span>
-                        <span style={{ color: '#888', marginLeft: 2 }}>个</span>
                         <span style={{ margin: '0 6px', color: '#ccc' }}>|</span>
                         <span style={{ color: '#888' }}>总数：</span>
                         <span style={{ color: '#fa541c', fontWeight: 700 }}>{loc.totalQuantity}</span>
@@ -2291,7 +2292,7 @@ const MobileLocationInventory = () => {
           </div>
         )}
       </Modal>
-    </>
+    </div>    
   );
 };
 
