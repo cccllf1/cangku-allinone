@@ -388,11 +388,11 @@ router.get('/by-product', async (req, res) => {
           }
           const colorObj = productObj.colors[color];
           if (!colorObj.sizes[size]) {
-            colorObj.sizes[size] = { size, sku_code: skuCode, total_qty: 0, locations: [] };
+            colorObj.sizes[size] = { sku_size: size, sku_code: skuCode, total_quantity: 0, locations: [] };
           }
           const sizeObj = colorObj.sizes[size];
           const qty = sku.stock_quantity || sku.quantity || 0;
-          sizeObj.total_qty += qty;
+          sizeObj.total_quantity += qty;
           if (qty > 0) {
             sizeObj.locations.push({ location_code: locationCode, stock_quantity: qty });
           }
@@ -422,7 +422,7 @@ router.get('/by-product', async (req, res) => {
           pObj.colors[sColor].image_path = s.image_path;
         }
         if (!pObj.colors[sColor].sizes[sSize]) {
-          pObj.colors[sColor].sizes[sSize] = { size: sSize, sku_code: sCode, total_qty: 0, locations: [] };
+          pObj.colors[sColor].sizes[sSize] = { sku_size: sSize, sku_code: sCode, total_quantity: 0, locations: [] };
         }
       });
     });
@@ -430,7 +430,7 @@ router.get('/by-product', async (req, res) => {
     let dataArr = Object.values(productMap).map(p => {
       const colorsArr = Object.values(p.colors).map(cg => {
         const sizesArr = Object.values(cg.sizes);
-        const colTotal = sizesArr.reduce((t, s) => t + (s.total_qty || 0), 0);
+        const colTotal = sizesArr.reduce((t, s) => t + (s.total_quantity || 0), 0);
         const locSet = new Set();
         sizesArr.forEach(sz => {
           (sz.locations || []).forEach(l => locSet.add(l.location_code));
@@ -439,12 +439,12 @@ router.get('/by-product', async (req, res) => {
         return {
           ...cg,
           sizes: sizesArr,
-          total_qty: colTotal,
+          total_quantity: colTotal,
           sku_count: sizesArr.length,
           location_count: locationCount
         };
       });
-      const prodTotal = colorsArr.reduce((t, c) => t + c.total_qty, 0);
+      const prodTotal = colorsArr.reduce((t, c) => t + c.total_quantity, 0);
       const skuCount = colorsArr.reduce((t, c) => t + c.sku_count, 0);
       const locSet = new Set();
       colorsArr.forEach(col => {
@@ -461,7 +461,7 @@ router.get('/by-product', async (req, res) => {
           skusFlat.push({
             sku_code: sz.sku_code,
             sku_color: cg.color,
-            sku_size: sz.size,
+            sku_size: sz.sku_size,
             image_path: cg.image_path || ''
           });
         });
@@ -473,7 +473,7 @@ router.get('/by-product', async (req, res) => {
         unit: det.unit || '',
         image_path: det.image_path || '',
         has_sku: det.has_sku ?? true,
-        total_qty: prodTotal,
+        total_quantity: prodTotal,
         sku_count: skuCount,
         location_count: locationCount,
         color_count: colorsArr.length,

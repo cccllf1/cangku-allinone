@@ -7,6 +7,13 @@
    - ❌ 错误：`productId`, `locationCode`, `skuCode`, `quantity`, `createdAt`, `updatedAt`
 2. **字段命名必须一致，不允许多种格式混用**
 3. **相同业务含义的字段在前端、后端、数据库必须保持完全一致**
+4. **所有变量名、对象属性名、临时变量名、结构体字段名等也必须使用snake_case标准命名**
+   - 不仅API参数和数据库字段，前端/后端所有代码中的变量、对象属性、临时数据结构等都必须用snake_case。
+   - 禁止camelCase、PascalCase、缩写等其它风格。
+   - 例如：
+     - ✅ 正确：`sku_code`, `product_code`, `stock_quantity`
+     - ❌ 错误：`code`, `skuCode`, `productCode`, `qty`
+   - 这样可以保证全链路（接口、数据库、前端、后端、临时变量）命名风格完全一致，方便维护和排查。
 
 ## 🚫 禁止兜底写法（字段名混用）
 
@@ -85,6 +92,7 @@ if (!loc) throw new Error('缺少 location_code 字段');
 | 源库位编码   | `from_location_code` | `fromLocationCode` | 转移出库位编码 |
 | 目标库位ID   | `to_location_id`     | `toLocationId`   | 转移入库位唯一标识 |
 | 目标库位编码 | `to_location_code`   | `toLocationCode` | 转移入库位编码 |
+| 商品总库存   | `total_quantity`    | `total_qty`, `qty`  | 商品下所有SKU的库存合计 |
 
 ---
 
@@ -121,7 +129,7 @@ if (!loc) throw new Error('缺少 location_code 字段');
 {
   "product_id": "string",      // 商品ID（可选，与product_code二选一）
   "product_code": "string",    // 商品编码（可选，与product_id二选一）
-  "location_id": "string",     // 库位ID（可选，与location_code二选一）
+  "location_id": "string",     // 库位ID（可选与location_code二选一）
   "location_code": "string",   // 库位编码（可选，与location_id二选一）
   "sku_code": "string",        // SKU编码（可选）
   "stock_quantity": "number"   // 数量（必需）
@@ -266,7 +274,7 @@ if (!loc) throw new Error('缺少 location_code 字段');
         "unit": "件",
         "image_path": "/uploads/product-xxx.jpg",
         "has_sku": true,
-        "total_qty": 321,
+        "total_quantity": 321,
         "sku_count": 24,
         "location_count": 7,
         "color_count": 6,
@@ -276,16 +284,16 @@ if (!loc) throw new Error('缺少 location_code 字段');
             "image_path": "/uploads/product-xxx.jpeg",
             "sizes": [
               {
-                "size": "M",
+                "sku_size": "M",
                 "sku_code": "129092-黄色-M",
-                "total_qty": 8,
+                "total_quantity": 8,
                 "locations": [
                   { "location_code": "西8排1架6层4位", "stock_quantity": 8 }
                 ]
               }
               // ...更多尺码
             ],
-            "total_qty": 35,
+            "total_quantity": 35,
             "sku_count": 4,
             "location_count": 2
           }
@@ -744,7 +752,7 @@ fetch('/api/products/12345')
         "is_active": true
       }
     ],
-    "total_stock_quantity": 100,
+    "total_quantity": 100,
     "created_at": "2024-01-01T12:00:00.000Z",
     "updated_at": "2024-01-01T12:00:00.000Z"
   },
@@ -949,10 +957,18 @@ curl -X POST http://192.168.11.252:8610/api/inventory/transfer \
 // ...如需完整商品/库存结构，可粘贴历史消息内容
 ```
 
-### “无货位”标准约定
+### "无货位"标准约定
 
 - **location_code: "无货位"**
 - 代表未分配具体货架/货位的库存
 - 所有移库、清库位等操作，目标库位统一传 "无货位"
 - 数据库应有一条 location_code 为 "无货位" 的库位记录
 - 禁止用空字符串、null 或其它变体兜底
+
+### 合计库存字段命名规范
+
+- 所有合计数量字段统一用 `total_quantity`，禁止使用 `total_qty`、`qty` 等缩写。
+- 例如：
+  - 商品总库存：`total_quantity`
+  - 颜色下总库存：`total_quantity`
+- 说明：保持与 `stock_quantity`、`available_quantity` 等命名风格一致，便于全链路一致性和维护。
