@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Button, Input, message, List, Card, Space, Modal, Form, Switch, Select, Upload, Tabs, Badge, Tag, Popconfirm, InputNumber, Image, Collapse, Dropdown, Menu } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, PictureOutlined, SaveOutlined, SearchOutlined, LinkOutlined, ScanOutlined, CloseOutlined, ArrowRightOutlined, InboxOutlined, ExportOutlined, RedoOutlined, WarningOutlined, SettingOutlined, DownOutlined, SwapOutlined, ExclamationCircleFilled } from '@ant-design/icons';
 import api from '../api/auth';
@@ -121,6 +121,22 @@ const MobileProductManage = () => {
 
   // 新增：当前用户信息
   const [currentUser, setCurrentUser] = useState(null);
+
+  // 自动滚动到最右
+  useEffect(() => {
+    const scrollAllToRight = () => {
+      if (window.__imgListRefs) {
+        Object.values(window.__imgListRefs).forEach(ref => {
+          if (ref && ref.scrollWidth > ref.clientWidth) {
+            ref.scrollLeft = ref.scrollWidth;
+          }
+        });
+      }
+    };
+    scrollAllToRight();
+    window.addEventListener('resize', scrollAllToRight);
+    return () => window.removeEventListener('resize', scrollAllToRight);
+  });
 
   // 加载所有产品和自定义设置
   useEffect(() => {
@@ -935,51 +951,55 @@ const MobileProductManage = () => {
                 </div>
               </div>
               {/* 中间图片区域，flex自适应，最小0px最大填充，超出隐藏，每张图片宽高65px且不会被压缩 */}
-              <div style={{ flex: 1, minWidth: 0, display: 'flex', gap: 4, margin: '0 8px', overflow: 'hidden', justifyContent: 'flex-start', alignItems: 'center' }}>
-                {product.skus && product.skus.length > 0 && product.skus.some(sku => sku.image_path)
-                  ? (() => {
-                      // 构建 sku_code -> total_quantity map
-                      const skuQtyMap = {};
-                      if (product.colors) {
-                        product.colors.forEach(col => {
-                          (col.sizes || []).forEach(sz => {
-                            skuQtyMap[sz.sku_code] = sz.total_quantity;
+              <div
+                className="img-list-outer"
+                style={{ flex: 1, minWidth: 0, overflowX: 'auto', overflowY: 'hidden', margin: '0 8px', paddingBottom: 2 }}
+                ref={el => { if (el) window.__imgListRefs = (window.__imgListRefs || []); window.__imgListRefs[product.product_code] = el; }}
+              >
+                <div className="img-list-inner" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', minWidth: 'max-content', gap: 4, alignItems: 'center' }}>
+                  {product.skus && product.skus.length > 0 && product.skus.some(sku => sku.image_path)
+                    ? (() => {
+                        // 构建 sku_code -> total_quantity map
+                        const skuQtyMap = {};
+                        if (product.colors) {
+                          product.colors.forEach(col => {
+                            (col.sizes || []).forEach(sz => {
+                              skuQtyMap[sz.sku_code] = sz.total_quantity;
+                            });
                           });
+                        }
+                        // 按图片分组（同图片的SKU归为一组）
+                        const imgMap = {};
+                        product.skus.filter(sku => sku.image_path).forEach(sku => {
+                          if (!imgMap[sku.image_path]) imgMap[sku.image_path] = [];
+                          imgMap[sku.image_path].push(sku);
                         });
-                      }
-                      // 按图片分组（同图片的SKU归为一组）
-                      const imgMap = {};
-                      product.skus.filter(sku => sku.image_path).forEach(sku => {
-                        if (!imgMap[sku.image_path]) imgMap[sku.image_path] = [];
-                        imgMap[sku.image_path].push(sku);
-                      });
-                      const imgEntries = Object.entries(imgMap);
-                      // 计算最多能显示几张图片
-                      const maxImgCount = Math.floor((Math.max(0, document.body.clientWidth - 120 - 60 - 48)) / (65 + 4)); // 120:文字区, 60:按钮区, 48:左右margin+gap
-                      return imgEntries.slice(0, maxImgCount).map(([imgPath, skuList], idx) => {
-                        // 用skuQtyMap统计真实库存
-                        const totalQty = skuList.reduce((sum, sku) => sum + (skuQtyMap[sku.sku_code] || 0), 0);
-                        return (
-                          <div key={imgPath+idx} style={{ position: 'relative', width: 65, height: 65, borderRadius: 6, overflow: 'hidden', background: '#f5f5f5', border: '1px solid #eee', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 65px' }}>
-                            <img
-                              src={getFullImageUrl(imgPath)}
-                              alt={product.product_name || product.product_code}
-                              style={{ width: 65, height: 65, objectFit: 'cover', borderRadius: 6 }}
-                            />
-                            {/* 左上角合计件数角标（仅数字，白字） */}
-                            <div style={{ position: 'absolute', top: 3, left: 3, background: 'rgba(0,0,0,0.2)', color: '#fff', borderRadius: 8, fontSize: 15, padding: '0 7px', fontWeight: 700, minWidth: 24, textAlign: 'center', lineHeight: '20px', height: 20 }}>{totalQty}</div>
-                            {/* 右下角有货尺码数角标（只显示有货SKU数，白字） */}
-                            <div style={{ position: 'absolute', bottom: 3, right: 3, background: 'rgba(0,0,0,0.2)', color: '#fff', borderRadius: 8, fontSize: 15, padding: '0 7px', fontWeight: 700, minWidth: 20, textAlign: 'center', lineHeight: '20px', height: 20 }}>{skuList.filter(sku => (skuQtyMap[sku.sku_code] || 0) > 0).length}</div>
-                          </div>
-                        );
-                      });
-                    })()
-                  : (
-                    <div style={{ width: 65, height: 65, backgroundColor: '#f0f0f0', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', flexShrink: 0, color: '#999', fontSize: 14 }}>
-                      无图
-                    </div>
-                  )
-                }
+                        const imgEntries = Object.entries(imgMap);
+                        return imgEntries.map(([imgPath, skuList], idx) => {
+                          // 用skuQtyMap统计真实库存
+                          const totalQty = skuList.reduce((sum, sku) => sum + (skuQtyMap[sku.sku_code] || 0), 0);
+                          return (
+                            <div key={imgPath+idx} style={{ position: 'relative', width: 65, height: 65, borderRadius: 6, overflow: 'hidden', background: '#f5f5f5', border: '1px solid #eee', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 65px' }}>
+                              <img
+                                src={getFullImageUrl(imgPath)}
+                                alt={product.product_name || product.product_code}
+                                style={{ width: 65, height: 65, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
+                              />
+                              {/* 左上角合计件数角标（仅数字，白字） */}
+                              <div style={{ position: 'absolute', top: 3, left: 3, background: 'rgba(0,0,0,0.2)', color: '#fff', borderRadius: 8, fontSize: 15, padding: '0 7px', fontWeight: 700, minWidth: 24, textAlign: 'center', lineHeight: '20px', height: 20 }}>{totalQty}</div>
+                              {/* 右下角有货尺码数角标（只显示有货SKU数，白字） */}
+                              <div style={{ position: 'absolute', bottom: 3, right: 3, background: 'rgba(0,0,0,0.2)', color: '#fff', borderRadius: 8, fontSize: 15, padding: '0 7px', fontWeight: 700, minWidth: 20, textAlign: 'center', lineHeight: '20px', height: 20 }}>{skuList.filter(sku => (skuQtyMap[sku.sku_code] || 0) > 0).length}</div>
+                            </div>
+                          );
+                        });
+                      })()
+                    : (
+                      <div style={{ width: 65, height: 65, backgroundColor: '#f0f0f0', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', flexShrink: 0, color: '#999', fontSize: 14 }}>
+                        无图
+                      </div>
+                    )
+                  }
+                </div>
               </div>
               {/* 操作按钮区，固定宽度60px */}
               <div style={{ width: 60, minWidth: 60, maxWidth: 60, display: 'flex', gap: 8, flexShrink: 0, justifyContent: 'flex-end' }}>
