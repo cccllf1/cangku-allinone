@@ -26,19 +26,23 @@ const withAuth = (WrappedComponent) => {
         try {
           // 验证token是否有效
           const response = await api.get('/auth/me');
-          console.log('认证检查成功:', response.data);
-          setAuthenticated(true);
-        } catch (error) {
-          console.error('认证检查失败:', error);
-          if (error.response?.status === 401) {
-            message.error('登录已过期，请重新登录');
-            // 清除登录信息
+          if (response.data && response.data.success) {
+            console.log('认证检查成功:', response.data);
+            setAuthenticated(true);
+          } else {
+            console.error('认证检查失败:', response.data.error_message);
+            message.error(response.data.error_message || '认证失败，请重新登录');
             localStorage.removeItem('token');
             localStorage.removeItem('is_admin');
-          } else {
-            // 其他错误不影响认证状态
-            setAuthenticated(true);
+            setAuthenticated(false);
           }
+        } catch (error) {
+          console.error('认证检查失败:', error);
+          message.error(error.response?.data?.error_message || '认证失败，请重新登录');
+          // 清除登录信息
+          localStorage.removeItem('token');
+          localStorage.removeItem('is_admin');
+          setAuthenticated(false);
         } finally {
           setLoading(false);
         }

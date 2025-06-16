@@ -62,13 +62,10 @@ router.post('/image', auth, (req, res, next) => {
       console.error('没有文件被上传');
       return res.status(400).json({ message: '没有文件被上传' });
     }
-    
     console.log('文件上传成功:', req.file);
-    
-    // 返回文件访问URL
-    const fileUrl = `/uploads/${req.file.filename}`;
-    console.log('生成文件URL:', fileUrl);
-    
+    // 返回文件访问路径，字段名对齐API-NAMING-STANDARD.md
+    const image_path = `/uploads/${req.file.filename}`;
+    console.log('生成 image_path:', image_path);
     // 验证文件是否可访问
     const filePath = path.join(__dirname, '../../uploads', req.file.filename);
     if (fs.existsSync(filePath)) {
@@ -78,8 +75,7 @@ router.post('/image', auth, (req, res, next) => {
     } else {
       console.error('文件未成功保存到磁盘!');
     }
-    
-    res.json({ url: fileUrl, message: '文件上传成功' });
+    res.json({ image_path, message: '文件上传成功' });
   } catch (error) {
     console.error('文件上传失败:', error);
     res.status(500).json({ message: '文件上传失败: ' + error.message });

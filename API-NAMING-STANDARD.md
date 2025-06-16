@@ -8,6 +8,49 @@
 2. **字段命名必须一致，不允许多种格式混用**
 3. **相同业务含义的字段在前端、后端、数据库必须保持完全一致**
 
+## 🚫 禁止兜底写法（字段名混用）
+
+### 规范要求
+
+- 每个字段只能有唯一、标准的字段名。
+- 严禁用其它字段名兜底或兼容。
+- 例如：商品编码就是 `product_code`，SKU 编码就是 `sku_code`，库位编码就是 `location_code`。
+- 如果数据中缺少标准字段，必须报错或提示，绝不能用其它字段兜底。
+
+### 反面案例（错误写法）
+
+```js
+// ❌ 错误：用 SKU 代替商品编码
+const code = obj.product_code || obj.sku_code; // 禁止
+// ❌ 错误：用 code 代替 location_code
+const loc = obj.location_code || obj.code; // 禁止
+```
+
+### 正面案例（正确写法）
+
+```js
+// ✅ 正确：只用标准字段
+const code = obj.product_code;
+if (!code) throw new Error('缺少 product_code 字段'); // 必须报错或提示
+
+const loc = obj.location_code;
+if (!loc) throw new Error('缺少 location_code 字段');
+```
+
+### 说明
+
+- 商品编码就是商品编码，SKU 编码就是 SKU 编码，不能混用。
+- 如果你发现数据里没有标准字段，必须排查数据来源和接口实现，不能用其它字段兜底。
+- 兜底写法会掩盖数据结构不规范、数据丢失等问题，导致后期难以维护和排查。
+- 只有严格报错，才能让开发者及时发现和修正问题，保证数据结构和接口规范。
+
+> 举例说明：
+>
+> - 商品编码（`product_code`）就是商品编码，绝不能用 SKU 编码（`sku_code`）来代替。如果商品编码丢失，必须查明原因，不能用 SKU 编码兜底，否则会导致数据混乱，后果严重。
+
+**结论：**
+> 禁止任何字段名兜底写法，找不到标准字段就必须报错或提示，不能用其它字段代替。
+
 ---
 
 ## 🎯 标准字段命名对照表
@@ -32,6 +75,7 @@
 | 用户ID       | `user_id`            | `userId`         | 用户唯一标识   |
 | 用户名       | `user_name`           | `userName`       | 用户登录名     |
 | 角色         | `role`               | `userRole`       | 用户角色       |
+| 操作员ID     | `operator_id`        | `operatorId`, `op_id` | 记录操作员身份，所有涉及库存调整、转移、入库、出库等操作必须传递 |
 | 库存数量     | `stock_quantity`     | `quantity`, `stockQty` | 整数单位 |
 | 可用库存     | `available_quantity` | `avlQty`         | 可销售数量     |
 | 创建时间     | `created_at`         | `createdAt`, `createTime` | ISO8601格式 |
@@ -903,4 +947,12 @@ curl -X POST http://192.168.11.252:8610/api/inventory/transfer \
     "stock_quantity": 8
 }
 // ...如需完整商品/库存结构，可粘贴历史消息内容
-``` 
+```
+
+### “无货位”标准约定
+
+- **location_code: "无货位"**
+- 代表未分配具体货架/货位的库存
+- 所有移库、清库位等操作，目标库位统一传 "无货位"
+- 数据库应有一条 location_code 为 "无货位" 的库位记录
+- 禁止用空字符串、null 或其它变体兜底

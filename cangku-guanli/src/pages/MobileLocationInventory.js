@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { 
   Input, Button, List, Card, Select, Badge, Tag, Space, 
-  Modal, InputNumber, message, Empty, Spin, Form, Checkbox, Drawer
+  Modal, InputNumber, message, Empty, Spin, Form, Checkbox, Drawer, Upload
 } from 'antd';
 import { Popup, Picker } from 'antd-mobile';
 import { 
   SearchOutlined, SwapOutlined, 
-  SaveOutlined, WarningOutlined, CheckCircleOutlined, PlusOutlined, EditOutlined, DeleteOutlined, FilterOutlined, ArrowUpOutlined, ArrowDownOutlined, CloseOutlined, SettingOutlined, RightOutlined, LoadingOutlined
+  SaveOutlined, WarningOutlined, CheckCircleOutlined, PlusOutlined, EditOutlined, DeleteOutlined, FilterOutlined, ArrowUpOutlined, ArrowDownOutlined, CloseOutlined, SettingOutlined, RightOutlined, LoadingOutlined, ExclamationCircleOutlined
 } from '@ant-design/icons';
 import api from '../api/auth';
 import { useNavigate } from 'react-router-dom';
@@ -240,6 +240,7 @@ const MobileLocationInventory = () => {
   const [transferVisible, setTransferVisible] = useState(false);
   const [targetLocation, setTargetLocation] = useState(null);
   const [transferQuantity, setTransferQuantity] = useState(1);
+  const [currentUser, setCurrentUser] = useState(null);
   const [locationOptions, setLocationOptions] = useState([]);
   const [addProductVisible, setAddProductVisible] = useState(false);
   const [inputCode, setInputCode] = useState('');
@@ -295,38 +296,21 @@ const MobileLocationInventory = () => {
   const [currentSortField, setCurrentSortField] = useState(null);
   const [currentSortOrder, setCurrentSortOrder] = useState('asc'); // 'asc' or 'desc'
   const [sortedItems, setSortedItems] = useState([]);
+  const [noLocationItems, setNoLocationItems] = useState([]);
+  const [selectedNoLocItem, setSelectedNoLocItem] = useState(null);
 
   const navigate = useNavigate();
 
   // useMemo放在组件顶层，不能放在fetchLocations等函数内部
   const allInventoryItems = useMemo(() => locations.flatMap(loc => loc.inventoryItems || []), [locations]);
-  const allProductCodes = useMemo(() => getUnique(
-    allInventoryItems,
-    item => {
-      // 只提取基础商品编号，不包含颜色和尺码
-      if (item.sku_code) {
-        const baseCode = safeSplit(item.sku_code, '-')[0];
-        return baseCode || '';
-      }
-      return '';
-    }
-  ), [allInventoryItems]);
-  const allColors = useMemo(() => getUnique(
-    allInventoryItems,
-    item => item.color || item.sku_color || ''
-  ), [allInventoryItems]);
-  const allSizes = useMemo(() => getUnique(
-    allInventoryItems,
-    item => item.sku_size || item.size || ''
-  ), [allInventoryItems]);
-  const allQuantities = useMemo(() => getUnique(allInventoryItems, 'quantity'), [allInventoryItems]);
+  const allLocationCodes = useMemo(() => getUnique(locations, loc => loc.location_code), [locations]);
 
   const filterFields = [
-    { key: 'product_code', label: '商品编号', options: allProductCodes },
-    { key: 'color', label: '颜色', options: allColors },
-    { key: 'sku_size', label: '尺码', options: allSizes },
-    { key: 'quantity', label: '数量', options: allQuantities },
-    { key: 'location_code', label: '货位', options: locations.map(l => l.location_code) },
+    { key: 'product_code', label: '商品编号', options: allInventoryItems.map(item => item.product_code) },
+    { key: 'color', label: '颜色', options: allInventoryItems.map(item => item.color) },
+    { key: 'sku_size', label: '尺码', options: allInventoryItems.map(item => item.sku_size) },
+    { key: 'quantity', label: '数量', options: allInventoryItems.map(item => item.quantity) },
+    { key: 'location_code', label: '货位', options: allLocationCodes },
   ];
 
   // 在组件内定义映射对象
@@ -377,8 +361,7 @@ const MobileLocationInventory = () => {
             if (baseCode) options.product_code.add(baseCode);
           }
           // 注意：不再添加完整的SKU编码作为商品编号
-          // if (item.productCode) options.productCode.add(item.productCode);
-          // if (item.code) options.productCode.add(item.code);
+       
 
           // 颜色选项
           if (item.color) options.color.add(item.color);
@@ -436,11 +419,23 @@ const MobileLocationInventory = () => {
       const response = await api.get('/inventory/by-location');
       if (response.data && response.data.success) {
         // 适配新接口结构
-        const locations = (response.data.data || []).map(loc => ({
-          location_code: loc.location_code,
-          items: loc.items || [],
-          // 可根据需要添加其它字段
-        }));
+        const locations = (response.data.data || []).map(loc => {
+          const items = loc.items || [];
+          // SKU数
+          const skuCount = items.length;
+          // 商品种数（按 product_code 去重）
+          const productSet = new Set(items.map(it => it.product_code));
+          const productCount = productSet.size;
+          // 合计件数
+          const totalQuantity = items.reduce((sum, it) => sum + (it.stock_quantity || 0), 0);
+          return {
+            location_code: loc.location_code,
+            items,
+            skuCount,
+            productCount,
+            totalQuantity
+          };
+        });
         setLocations(locations);
         setFilteredLocations(locations);
         setLocationOptions(
@@ -558,8 +553,9 @@ const MobileLocationInventory = () => {
   // 显示库位详情
   const showLocationDetail = async (location) => {
     // 补全 location_code 字段，确保后续弹窗有货位信息
-    const locCode = location.location_code || location.code;
-    setSelectedLocation({ ...location, location_code: locCode });
+    const locCode = location.location_code;
+    setSelectedLocation(location);
+    console.log('弹窗打开时 selectedLocation:', location); // 自动打印
     const detail = await fetchLocationDetail(locCode);
     if (detail) {
       setDetailVisible(true);
@@ -582,35 +578,32 @@ const MobileLocationInventory = () => {
   // 保存编辑的数量
   const saveEditQuantity = async () => {
     if (!editingItem || !selectedLocation) return;
-
+    if (!currentUser || !currentUser.user_id) {
+      message.error('未获取到用户信息，请重新登录');
+      return;
+    }
     try {
       setLoading(true);
-      // 修复库位编码获取逻辑
       const currentLocationCode = selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code;
-      // 调用API保存数量修改，必须包含 stock_quantity 字段
-      await api.post('/inventory/adjust', {
-        product_id: editingItem.product_id || editingItem.inventoryId || editingItem._id,
-        location_code: selectedLocation?.location_code || selectedLocation?.location_code || locationDetail?.location_code,
+      const requestData = {
+        product_id: editingItem.product_id,
         product_code: editingItem.product_code,
-        sku_code: editingItem.sku_code || '',
-        sku_color: editingItem.sku_color || '',
-        sku_size: editingItem.sku_size || '',
+        location_code: currentLocationCode,
+        sku_code: editingItem.sku_code,
+        sku_color: editingItem.sku_color || editingItem.color,
+        sku_size: editingItem.sku_size || editingItem.size,
         stock_quantity: Number(editQuantity),
-        quantity: Number(editQuantity)
-      });
-      // 更新本地数据
+        operator_id: currentUser.user_id,
+        notes: '手动修改库存数量'
+      };
+      await api.post('/inventory/adjust', requestData);
       const updatedDetail = await fetchLocationDetail(currentLocationCode);
       setLocationDetail(updatedDetail);
-      // 刷新库位列表以更新计数
       await fetchLocations();
       message.success('数量已更新');
       setEditMode(false);
       setEditingItem(null);
     } catch (error) {
-      console.error('保存失败:', error);
-      if (error.response) {
-        console.error('错误详情:', error.response.data);
-      }
       message.error('保存失败: ' + (error.response?.data?.message || error.message));
     } finally {
       setLoading(false);
@@ -632,66 +625,34 @@ const MobileLocationInventory = () => {
       message.warning('请完善转移信息');
       return;
     }
-
     if (transferQuantity > editingItem.quantity) {
       message.warning('转移数量不能大于当前数量');
       return;
     }
-
+    if (!currentUser || !currentUser.user_id) {
+      message.error('未获取到用户信息，请重新登录');
+      return;
+    }
     try {
       setLoading(true);
-      
-      // 修复库位编码获取逻辑
       const fromLocationCode = selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code;
-      
-      console.log('开始转移商品:', {
+      await api.post('/inventory/transfer', {
         product_id: editingItem.product_id,
         sku_code: editingItem.sku_code,
-        from_locationCode: fromLocationCode,
-        to_targetLocation: targetLocation,
-        quantity: transferQuantity
+        from_location_code: fromLocationCode,
+        to_location_code: targetLocation,
+        stock_quantity: transferQuantity,
+        sku_color: editingItem.sku_color,
+        sku_size: editingItem.sku_size,
+        operator_id: currentUser.user_id,
+        notes: '移动库存操作'
       });
-
-      // 先从当前库位出库 - 修复API参数
-      await api.post('/outbound/', {
-        product_id: editingItem.product_id,
-        location_code: fromLocationCode, // 使用正确的参数名
-        quantity: transferQuantity,
-        ...(editingItem.sku_code ? {
-          sku_code: editingItem.sku_code, // 使用正确的参数名
-          sku_color: editingItem.sku_color,
-          sku_size: editingItem.sku_size
-        } : {})
-      });
-
-      // 再入库到目标库位 - 修复API参数
-      await api.post('/inbound/', {
-        product_id: editingItem.product_id,
-        location_code: targetLocation, // 使用正确的参数名
-        quantity: transferQuantity,
-        ...(editingItem.sku_code ? {
-          sku_code: editingItem.sku_code, // 使用正确的参数名
-          sku_color: editingItem.sku_color,
-          sku_size: editingItem.sku_size
-        } : {})
-      });
-
       message.success('转移成功');
-      
-      // 更新本地数据
       const updatedDetail = await fetchLocationDetail(fromLocationCode);
       setLocationDetail(updatedDetail);
-      
-      // 刷新库位列表
       await fetchLocations();
-      
-      // 关闭弹窗
       setTransferVisible(false);
     } catch (error) {
-      console.error('转移失败:', error);
-      if (error.response) {
-        console.error('错误详情:', error.response.data);
-      }
       message.error('转移失败: ' + (error.response?.data?.message || error.message));
     } finally {
       setLoading(false);
@@ -774,11 +735,11 @@ const MobileLocationInventory = () => {
       const products = response.data;
       
       // 首先检查是否有完全匹配的商品
-      const exactMatch = products.filter(p => p.code === value);
+      const exactMatch = products.filter(p => p.product_code === value);
       
       // 查找匹配的产品 - 完全匹配、开头匹配、包含匹配、名称匹配
-      const startsWith = products.filter(p => p.code.startsWith(value) && p.code !== value);
-      const contains = products.filter(p => p.code.includes(value) && !p.code.startsWith(value));
+      const startsWith = products.filter(p => p.product_code.startsWith(value) && p.product_code !== value);
+      const contains = products.filter(p => p.product_code.includes(value) && !p.product_code.startsWith(value));
       const nameMatches = products.filter(p => 
         p.name && p.name.toLowerCase().includes(value.toLowerCase()) && 
         !exactMatch.includes(p) && !startsWith.includes(p) && !contains.includes(p)
@@ -813,13 +774,19 @@ const MobileLocationInventory = () => {
   
   // 选择建议的商品
   const selectSuggestion = (product) => {
-    setInputCode(product.code);
+    setInputCode(product.product_code);
     setSelectedProduct(product);
     setShowSuggestions(false);
-    
     // 如果商品有SKU，显示SKU选择
     if (product.skus && product.skus.length > 0) {
-      setAvailableSkus(product.skus);
+      // 只保留标准字段名
+      const normalizedSkus = product.skus.map(sku => ({
+        ...sku,
+        sku_code: sku.sku_code,
+        sku_color: sku.sku_color,
+        sku_size: sku.sku_size,
+      }));
+      setAvailableSkus(normalizedSkus);
       setSelectedSku(null);
     } else {
       setAvailableSkus([]);
@@ -828,23 +795,17 @@ const MobileLocationInventory = () => {
   };
 
   // 打开添加商品弹窗
-  const showAddProductModal = () => {
-    setInputCode('');
-    setAddQuantity(1);
-    setProductSuggestions([]);
-    setShowSuggestions(false);
-    setSelectedProduct(null);
-    setAvailableSkus([]);
-    setSelectedSku(null);
+  const showAddProductModal = async () => {
     setAddProductVisible(true);
-    
-    // 添加一个延迟聚焦
-    setTimeout(() => {
-      const inputElement = document.getElementById('productInput');
-      if (inputElement) {
-        inputElement.focus();
-      }
-    }, 300);
+    setSelectedNoLocItem(null);
+    setAddQuantity(1);
+    try {
+      const res = await api.get('/inventory/by-location');
+      const noLoc = res.data.data.find(loc => loc.location_code === '无货位');
+      setNoLocationItems(noLoc ? noLoc.items : []);
+    } catch (e) {
+      setNoLocationItems([]);
+    }
   };
   
   // 添加新商品到当前库位
@@ -853,31 +814,24 @@ const MobileLocationInventory = () => {
       message.warning('请先选择一个库位');
       return;
     }
-    
     if ((!inputCode || inputCode.trim() === '') && !selectedProduct) {
       message.warning('请输入商品编码或从下拉列表中选择');
       return;
     }
-    
+    if (!currentUser || !currentUser.user_id) {
+      message.error('未获取到用户信息，请重新登录');
+      return;
+    }
     try {
       setLoading(true);
-      
-      // 如果已经选择了商品，直接使用
       let product = selectedProduct;
-      
-      // 如果没有选择商品，尝试根据编码查找
       if (!product && inputCode.trim() !== '') {
         try {
           const response = await api.get(`/products/code/${inputCode}`);
           product = response.data;
         } catch (error) {
-          console.error('根据编码查找商品失败:', error);
-          
-          // 尝试搜索相似产品
           await searchSimilarProducts(inputCode);
-          
           if (productSuggestions.length > 0) {
-            // 有搜索建议，展示下拉列表
             setLoading(false);
             return;
           } else {
@@ -887,55 +841,52 @@ const MobileLocationInventory = () => {
           }
         }
       }
-      
       if (!product) {
         message.warning('未找到商品');
         return;
       }
-      
-      // 如果商品有SKU但未选择SKU，提示用户选择
       if (product.skus && product.skus.length > 0 && !selectedSku) {
         message.warning('该商品有多个SKU，请选择具体的SKU');
         return;
       }
-      
-      // 构建入库数据
-      const inboundData = {
-        product_id: product.id || product._id,
-        location_code: selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code,
-        quantity: addQuantity
-      };
-      
-      // 如果选择了SKU，添加SKU信息
-      if (selectedSku) {
-        inboundData.sku_code = selectedSku.code;
-        inboundData.sku_color = selectedSku.color;
-        inboundData.sku_size = selectedSku.size;
+      // 上架数据（从无货位转移到当前库位）
+      const toLocationCode = selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code;
+      const fromLocationCode = '无货位';
+      const qty = addQuantity;
+      if (qty <= 0) {
+        message.info('上架数量必须大于0');
+        return;
       }
-      
-      // 直接入库到当前库位
-      await api.post('/inbound/', inboundData);
-      
+      if (selectedProduct && addQuantity > selectedProduct.stock_quantity) {
+        message.error('上架数量不能大于无货位库存');
+        return;
+      }
+      const transferData = {
+        product_id: product.id || product._id,
+        sku_code: selectedSku ? selectedSku.sku_code : (product.sku_code || ''),
+        from_location_code: fromLocationCode,
+        to_location_code: toLocationCode,
+        stock_quantity: qty,
+        operator_id: currentUser.user_id,
+        notes: '上架操作'
+      };
+      if (selectedSku) {
+        transferData.sku_color = selectedSku.sku_color;
+        transferData.sku_size = selectedSku.sku_size;
+      }
+      await api.post('/inventory/transfer', transferData);
       message.success({
-        content: `已添加 ${product.name} 到 ${selectedLocation.location_code}`,
+        content: `已上架 ${product.name || product.product_name || product.product_code} 到 ${toLocationCode}`,
         icon: <span style={{ color: '#52c41a', marginRight: '8px' }}>✓</span>
       });
-      
-      // 更新本地数据
-      const updatedDetail = await fetchLocationDetail(selectedLocation.location_code);
+      const updatedDetail = await fetchLocationDetail(toLocationCode);
       setLocationDetail(updatedDetail);
-      
-      // 刷新库位列表
       await fetchLocations();
-      
-      // 重置状态
       setInputCode('');
       setSelectedProduct(null);
       setAvailableSkus([]);
       setSelectedSku(null);
       setAddQuantity(1);
-      
-      // 保持弹窗打开，以便继续添加
       setTimeout(() => {
         const inputElement = document.getElementById('productInput');
         if (inputElement) {
@@ -943,8 +894,7 @@ const MobileLocationInventory = () => {
         }
       }, 300);
     } catch (error) {
-      console.error('添加商品失败:', error);
-      message.error('添加失败');
+      message.error('上架失败');
     } finally {
       setLoading(false);
     }
@@ -1038,8 +988,7 @@ const MobileLocationInventory = () => {
             const baseCode = item.sku_code?.split('-')[0];
             const matches = fieldFilters.product_code.some(code => 
               (baseCode && code === baseCode) ||
-              (item.product_code && code === item.product_code) ||
-              (item.code && code === item.code)
+              (item.product_code && code === item.product_code)
             );
             if (!matches) matchesFilters = false;
           }
@@ -1089,7 +1038,7 @@ const MobileLocationInventory = () => {
             }
             // 注意：不再添加完整的SKU编码作为商品编号
             // if (item.productCode) options.productCode.add(item.productCode);
-            // if (item.code) options.productCode.add(item.code);
+            // if (item. ffffcode) options.productCode.add(item.ffffcode);
 
             // 添加颜色选项
             if (item.sku_code) {
@@ -1175,8 +1124,7 @@ const MobileLocationInventory = () => {
           const baseCode = item.sku_code ? safeSplit(item.sku_code, '-')[0] : null;
           const matches = fieldFilters.product_code.some(code => 
             (baseCode && code === baseCode) ||
-            (item.product_code && code === item.product_code) ||
-            (item.code && code === item.code)
+            (item.product_code && code === item.product_code)
           );
           if (!matches) matchesFilters = false;
         }
@@ -1260,8 +1208,8 @@ const MobileLocationInventory = () => {
         
         switch(currentSortField) {
           case 'code':
-            aValue = a.code || '';
-            bValue = b.code || '';
+            aValue = a.location_code || '';
+            bValue = b.location_code || '';
             break;
           case 'skuCount':
             aValue = a.skuCount || 0;
@@ -1431,13 +1379,15 @@ const MobileLocationInventory = () => {
   };
 
   // 显示入库/出库弹窗
-  const showInoutModal = (type, locationCode, item) => {
+  const showInoutModal = async (type, locationCode, item) => {
     setInoutType(type);
-    setSelectedLocation({ code: locationCode });
+    setSelectedLocation({ location_code: locationCode });
     setInoutQuantity(1);
+    // 自动拉取最新 locationDetail
+    const detail = await fetchLocationDetail(locationCode);
     let latestItem = null;
-    if (item && locationDetail && locationDetail.items) {
-      latestItem = locationDetail.items.find(
+    if (item && detail && detail.items) {
+      latestItem = detail.items.find(
         it => it.sku_code === item.sku_code
       );
     }
@@ -1463,8 +1413,8 @@ const MobileLocationInventory = () => {
       
       switch(field) {
         case 'code':
-          aValue = a.code || '';
-          bValue = b.code || '';
+          aValue = a.location_code || '';
+          bValue = b.location_code || '';
           break;
         case 'skuCount':
           aValue = a.skuCount || 0;
@@ -1517,45 +1467,33 @@ const MobileLocationInventory = () => {
   // 处理入库或出库操作
   const handleInoutOperation = async () => {
     if (!selectedLocation || !inoutQuantity) return;
-    
+    if (!currentUser || !currentUser.user_id) {
+      message.error('未获取到用户信息，请重新登录');
+      return;
+    }
     try {
       setLoading(true);
-      
       const endpoint = inoutType === 'in' ? '/inbound/' : '/outbound/';
-      
-      // 构建基本请求数据 - 修复库位编码获取逻辑
       const locationCode = selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code;
       const requestData = {
         location_code: locationCode,
         quantity: inoutQuantity,
-        product_code: inoutItem?.sku_code || inoutItem?.code || inoutItem?.product_code,
+        product_code: inoutItem?.product_code,
+        product_id: inoutItem?.product_id,
+        sku_code: inoutItem?.sku_code,
+        sku_color: inoutItem?.sku_color,
+        sku_size: inoutItem?.sku_size,
+        operator_id: currentUser.user_id,
         notes: `${inoutType === 'in' ? '入库' : '出库'}操作 - 货位: ${locationCode}`
       };
-      
-      // 如果有选中的SKU
-      if (inoutItem) {
-        requestData.sku_code = inoutItem.sku_code;
-        requestData.sku_color = inoutItem.color || inoutItem.sku_color;
-        requestData.sku_size = inoutItem.sku_size || inoutItem.size;
-      }
-      
-      console.log('请求数据:', requestData);
-      
-      // 调用API进行入库或出库
-      const response = await api.post(endpoint, requestData);
-      console.log('API响应:', response.data);
-        
-      // 成功处理
-      message.success(inoutType === 'in' ? '入库成功' : '出库成功');
+      await api.post(endpoint, requestData);
+      const updatedDetail = await fetchLocationDetail(locationCode);
+      setLocationDetail(updatedDetail);
+      await fetchLocations();
       setInoutVisible(false);
-      setInoutItem(null);
-      
-      // 重新加载数据
-      fetchLocations();
-      
+      message.success(`${inoutType === 'in' ? '入库' : '出库'}成功`);
     } catch (error) {
-      console.error('API调用失败:', error);
-      message.error(error.response?.data?.message || '操作失败');
+      message.error(`${inoutType === 'in' ? '入库' : '出库'}失败: ` + (error.response?.data?.message || error.message));
     } finally {
       setLoading(false);
     }
@@ -1563,6 +1501,105 @@ const MobileLocationInventory = () => {
 
   // 在主页面组件里调用
   useScrollAllImageRowsToRight();
+
+  // 获取当前用户信息
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await api.get('/auth/me');
+        if (response.data && response.data.success) {
+          setCurrentUser(response.data.data);
+        }
+      } catch (error) {
+        console.error('获取用户信息失败:', error);
+        message.error('获取用户信息失败');
+      }
+    };
+    fetchCurrentUser();
+  }, []);
+
+  // 清库存操作
+  const handleClearStock = async (item) => {
+    if (!item || !selectedLocation || !currentUser?.user_id) {
+      message.error('缺少必要参数，无法清库存');
+      return;
+    }
+    try {
+      setLoading(true);
+      const currentLocationCode = selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code;
+      const requestData = {
+        product_id: item.product_id,
+        product_code: item.product_code,
+        location_code: currentLocationCode,
+        sku_code: item.sku_code,
+        sku_color: item.sku_color || item.color,
+        sku_size: item.sku_size || item.size,
+        stock_quantity: 0,
+        operator_id: currentUser.user_id,
+        notes: '清库存'
+      };
+      await api.post('/inventory/adjust', requestData);
+      const updatedDetail = await fetchLocationDetail(currentLocationCode);
+      setLocationDetail(updatedDetail);
+      await fetchLocations();
+      message.success('清库存成功');
+    } catch (error) {
+      message.error('清库存失败: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 清库位操作（移库到无货位）
+  const handleClearLocation = async (item) => {
+    if (!item || !selectedLocation || !currentUser?.user_id) {
+      message.error('缺少必要参数，无法清库位');
+      return;
+    }
+    const fromLocationCode = selectedLocation.location_code;
+    const toLocationCode = '无货位';
+    const qty = item.stock_quantity ?? item.quantity ?? 0;
+    if (qty <= 0) {
+      message.info('该SKU本库位已无库存');
+      return;
+    }
+    try {
+      setLoading(true);
+      const requestData = {
+        product_id: item.product_id,
+        sku_code: item.sku_code,
+        from_location_code: fromLocationCode,
+        to_location_code: toLocationCode,
+        stock_quantity: qty,
+        operator_id: currentUser.user_id,
+        notes: '清库位-移至无货位'
+      };
+      await api.post('/inventory/transfer', requestData);
+      const updatedDetail = await fetchLocationDetail(fromLocationCode);
+      setLocationDetail(updatedDetail);
+      await fetchLocations();
+      message.success('清库位成功，库存已移至无货位');
+    } catch (error) {
+      message.error('清库位失败: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 包装清库存操作，增加确认弹窗
+  const handleClearStockWithConfirm = (item) => {
+    Modal.confirm({
+      title: '确认要清空该SKU库存吗？',
+      content: `SKU: ${item.sku_code}，此操作会将该SKU库存清零，且不可恢复。确定要继续吗？`,
+      okText: '确定清库存',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: () => handleClearStock(item)
+    });
+  };
+
+  // 1. 在组件内定义唯一筛选项数据源
+  const allItems = useMemo(() => locations.flatMap(loc => loc.items || []), [locations]);
 
   return (
     <>
@@ -1613,7 +1650,7 @@ const MobileLocationInventory = () => {
           <div style={{ textAlign: 'center', padding: '32px 16px' }}>加载中...</div>
         ) : (currentSortField ? sortedItems : filteredItems).length > 0 ? (
           (currentSortField ? sortedItems : filteredItems).map(loc => {
-            const location_code = loc.location_code || loc.code;
+            const location_code = loc.location_code;
             if (!location_code) console.warn('库位缺少location_code:', loc);
             const items = loc.items || [];
             const totalQuantity = items.reduce((sum, it) => sum + (it.stock_quantity || 0), 0);
@@ -1629,11 +1666,19 @@ const MobileLocationInventory = () => {
                   <div className="location-code">{loc.location_code}</div>
                   {!isEmpty && (
                     <>
-                      <div className="location-info">
-                        <span>{productCount}种商品</span>
-                        <span>{skuCount}个SKU</span>
+                      <div style={{ lineHeight: 1.2, margin: '2px 0', fontSize: 13 }}>
+                        <span style={{ color: '#888' }}>商品数：</span>
+                        <span style={{ color: '#1890ff', fontWeight: 600 }}>{loc.productCount}</span>
+                        <span style={{ color: '#888', marginLeft: 2 }}>种</span>
+                        <span style={{ margin: '0 6px', color: '#ccc' }}>|</span>
+                        <span style={{ color: '#888' }}>SKU：</span>
+                        <span style={{ color: '#52c41a', fontWeight: 600 }}>{loc.skuCount}</span>
+                        <span style={{ color: '#888', marginLeft: 2 }}>个</span>
+                        <span style={{ margin: '0 6px', color: '#ccc' }}>|</span>
+                        <span style={{ color: '#888' }}>总数：</span>
+                        <span style={{ color: '#fa541c', fontWeight: 700 }}>{loc.totalQuantity}</span>
+                        <span style={{ color: '#888', marginLeft: 2 }}>件</span>
                       </div>
-                      <div className="location-total">合计{totalQuantity}件</div>
                     </>
                   )}
                 </div>
@@ -1784,12 +1829,12 @@ const MobileLocationInventory = () => {
 
       {/* 货位详情弹窗 */}
       <Modal
-        title={`库位详情: ${selectedLocation?.location_code || selectedLocation?.code || selectedLocation?.name || '未知库位'}`}
+        title={`库位详情: ${selectedLocation?.location_code || '未知库位'}`}
         open={detailVisible}
         onCancel={() => setDetailVisible(false)}
         footer={[
           <Button key="add" type="primary" icon={<PlusOutlined />} onClick={showAddProductModal}>
-            添加商品到此库位
+            上架
           </Button>,
           <Button key="close" onClick={() => setDetailVisible(false)}>
             关闭
@@ -1808,68 +1853,86 @@ const MobileLocationInventory = () => {
         {locationDetail && (
           locationDetail.items && locationDetail.items.length > 0 ? (
             <div style={{margin:'12px 0'}}>
-              {locationDetail.items.map((item, index) => {
-                const imagePath = item.image_path || item.image;
-                const skuKey = item.sku_code || item.product_id || index;
-                const isExpanded = expandedSkuKey === skuKey;
-                return (
-                  <div
-                    key={skuKey}
-                    style={{
-                      border: '1px solid #eee',
-                      borderRadius: 12,
-                      marginBottom: 8,
-                      padding: 8,
-                      background: '#fff',
-                      position: 'relative',
-                      overflow: 'hidden',
-                      display: 'flex',
-                      alignItems: 'center',
-                      flexDirection: 'column',
-                      justifyContent: 'flex-start',
-                      transition: 'min-height 0.2s',
-                      minHeight: isExpanded ? undefined : 100,
-                      maxHeight: isExpanded ? undefined : 100,
-                      height: isExpanded ? 'auto' : 100
-                    }}
-                    onClick={() => setExpandedSkuKey(isExpanded ? null : skuKey)}
-                  >
-                    <div style={{display: 'flex', gap: 8, alignItems: 'center', width: '100%', minHeight: 100, overflow: 'hidden'}}>
-                      <div style={{width: 100, height: 100, background: '#f5f5f5', borderRadius: 8, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                        {imagePath ? (
-                          <img src={getFullImageUrl ? getFullImageUrl(imagePath) : imagePath} alt={item.sku_code} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
-                        ) : (
-                          <span style={{color: '#bbb', fontSize: 12}}>无图</span>
-                        )}
+              {locationDetail.items
+                .filter(item => item.stock_quantity > 0)
+                .map((item, index) => {
+                  const imagePath = item.image_path || item.image;
+                  const skuKey = item.sku_code || item.product_id || index;
+                  const isExpanded = expandedSkuKey === skuKey;
+                  return (
+                    <div
+                      key={skuKey}
+                      style={{
+                        border: '1px solid #eee',
+                        borderRadius: 12,
+                        marginBottom: 8,
+                        padding: 8,
+                        background: '#fff',
+                        position: 'relative',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        alignItems: 'center',
+                        flexDirection: 'column',
+                        justifyContent: 'flex-start',
+                        transition: 'min-height 0.2s',
+                        minHeight: isExpanded ? undefined : 100,
+                        maxHeight: isExpanded ? undefined : 100,
+                        height: isExpanded ? 'auto' : 100
+                      }}
+                      onClick={() => setExpandedSkuKey(isExpanded ? null : skuKey)}
+                    >
+                      <div style={{display: 'flex', gap: 8, alignItems: 'center', width: '100%', minHeight: 100, overflow: 'hidden'}}>
+                        <div style={{width: 100, height: 100, background: '#f5f5f5', borderRadius: 8, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
+                          {imagePath ? (
+                            <img src={getFullImageUrl ? getFullImageUrl(imagePath) : imagePath} alt={item.sku_code} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                          ) : (
+                            <span style={{color: '#bbb', fontSize: 12}}>无图</span>
+                          )}
+                        </div>
+                        <div style={{flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.2, display: 'flex', flexDirection: 'column', justifyContent: 'center'}}>
+                          <div style={{display: 'flex', gap: 4, marginBottom: 2, flexWrap: 'wrap'}}>
+                            <Tag style={{padding: '0 4px', fontSize: 12}}>{item.product_code}</Tag>
+                            <Tag style={{padding: '0 4px', fontSize: 12}}>{item.product_name}</Tag>
+                          </div>
+                          <div style={{marginBottom: 2, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                            <Tag color="blue" style={{padding: '0 4px', fontSize: 12}}>SKU: {item.sku_code}</Tag>
+                          </div>
+                          <div style={{color: '#666', fontSize: 12, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                            颜色: {item.sku_color} 尺寸: {item.sku_size}
+                          </div>
+                          <div style={{color: '#1890ff', fontWeight: 'bold', fontSize: 13, whiteSpace: 'nowrap'}}>
+                            数量: {item.stock_quantity} 件
+                          </div>
+                        </div>
                       </div>
-                      <div style={{flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.2, display: 'flex', flexDirection: 'column', justifyContent: 'center'}}>
-                        <div style={{display: 'flex', gap: 4, marginBottom: 2, flexWrap: 'wrap'}}>
-                          <Tag style={{padding: '0 4px', fontSize: 12}}>{item.product_code}</Tag>
-                          <Tag style={{padding: '0 4px', fontSize: 12}}>{item.product_name}</Tag>
+                      {isExpanded && (
+                        <div style={{display: 'flex', flexDirection: 'row', gap: 8, marginTop: 4, width: '100%', justifyContent: 'flex-start'}} onClick={e => e.stopPropagation()}>
+                          <Button size="small" style={{backgroundColor: '#fadb14', borderColor: '#fadb14', color: '#000'}} onClick={() => { console.log('点击修改，selectedLocation:', selectedLocation, 'item:', item); startEdit(item); }}>修改</Button>
+                          <Button size="small" style={{backgroundColor: '#52c41a', borderColor: '#52c41a', color: '#fff'}} onClick={() => { console.log('点击转移，selectedLocation:', selectedLocation, 'item:', item); showTransferModal(item); }}>转移</Button>
+                          <Button size="small" danger onClick={() => { console.log('点击清库位，selectedLocation:', selectedLocation, 'item:', item); handleClearLocation(item); }}>清库位</Button>
+                          <Button type="primary" size="small" onClick={() => { console.log('点击入库，selectedLocation:', selectedLocation, 'item:', item); setInoutItem(item); showInoutModal('in', locationDetail.location_code, item); }}>入库</Button>
+                          <Button danger size="small" onClick={() => { console.log('点击出库，selectedLocation:', selectedLocation, 'item:', item); setInoutItem(item); showInoutModal('out', locationDetail.location_code, item); }}>出库</Button>
+                          <Button
+                            danger
+                            type="primary"
+                            icon={<ExclamationCircleOutlined />}
+                            style={{
+                              background: '#ff4d4f',
+                              borderColor: '#ff4d4f',
+                              fontWeight: 'bold',
+                              marginLeft: 12,
+                              boxShadow: '0 0 0 2px #fff, 0 0 0 4px #ffccc7'
+                            }}
+                            onClick={() => handleClearStockWithConfirm(item)}
+                            title="此操作不可恢复，请谨慎操作"
+                          >
+                            清库存
+                          </Button>
                         </div>
-                        <div style={{marginBottom: 2, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
-                          <Tag color="blue" style={{padding: '0 4px', fontSize: 12}}>SKU: {item.sku_code}</Tag>
-                        </div>
-                        <div style={{color: '#666', fontSize: 12, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
-                          颜色: {item.sku_color} 尺寸: {item.sku_size}
-                        </div>
-                        <div style={{color: '#1890ff', fontWeight: 'bold', fontSize: 13, whiteSpace: 'nowrap'}}>
-                          数量: {item.stock_quantity} 件
-                        </div>
-                      </div>
+                      )}
                     </div>
-                    {isExpanded && (
-                      <div style={{display: 'flex', flexDirection: 'row', gap: 8, marginTop: 4, width: '100%', justifyContent: 'flex-start'}} onClick={e => e.stopPropagation()}>
-                        <Button size="small" style={{backgroundColor: '#fadb14', borderColor: '#fadb14', color: '#000'}} onClick={() => startEdit(item)}>修改</Button>
-                        <Button size="small" style={{backgroundColor: '#52c41a', borderColor: '#52c41a', color: '#fff'}} onClick={() => showTransferModal(item)}>转移</Button>
-                        <Button size="small" danger onClick={() => moveToNoLocation(item)}>清库位</Button>
-                        <Button type="primary" size="small" onClick={() => { setInoutItem(item); showInoutModal('in', locationDetail.location_code, item); }}>入库</Button>
-                        <Button danger size="small" onClick={() => { setInoutItem(item); showInoutModal('out', locationDetail.location_code, item); }}>出库</Button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                  );
+                })}
             </div>
           ) : (
             <Empty description="该货位暂无库存" />
@@ -1887,12 +1950,12 @@ const MobileLocationInventory = () => {
       >
         {selectedLocation && (
           <div>
-            <p><strong>货位:</strong> {selectedLocation.code}</p>
+            <p><strong>当前库位:</strong> {selectedLocation?.location_code ? selectedLocation.location_code : <span style={{color: 'red'}}>缺少 location_code 字段</span>}</p>
             
             {/* 显示当前操作的SKU */}
             {inoutItem ? (
               <div>
-                <p><strong>SKU:</strong> <Tag color="blue">{inoutItem.sku_code || inoutItem.code}</Tag></p>
+                <p><strong>SKU:</strong> <Tag color="blue">{inoutItem.sku_code !== undefined && inoutItem.sku_code !== null && inoutItem.sku_code !== '' ? inoutItem.sku_code : <span style={{color: 'red'}}>缺少 sku_code 字段</span>}</Tag></p>
                 <p><strong>当前库存:</strong> {(inoutItem.stock_quantity ?? inoutItem.quantity ?? 0)} 件</p>
               </div>
             ) : (
@@ -1932,8 +1995,8 @@ const MobileLocationInventory = () => {
       >
         {editingItem && (
           <div>
-            <p><strong>商品:</strong> {editingItem.sku_code || editingItem.code}</p>
-            <p><strong>当前库位:</strong> {selectedLocation?.code}</p>
+            <p><strong>商品:</strong> {editingItem.sku_code !== undefined && editingItem.sku_code !== null && editingItem.sku_code !== '' ? editingItem.sku_code : <span style={{color: 'red'}}>缺少 sku_code 字段</span>}</p>
+            <p><strong>当前库位:</strong> {selectedLocation?.location_code || '未知'}</p>
             <p><strong>当前数量:</strong> {(editingItem?.stock_quantity ?? editingItem?.quantity ?? 0)} 件</p>
             
             <div style={{ marginBottom: 16 }}>
@@ -1965,7 +2028,7 @@ const MobileLocationInventory = () => {
                 </Option>
                 {/* 现有库位选项 */}
                 {locationOptions
-                  .filter(loc => loc.value !== (selectedLocation?.code || locationDetail?.location_code)) // 排除当前库位
+                  .filter(loc => loc.value !== (selectedLocation?.location_code || locationDetail?.location_code)) // 排除当前库位
                   .map(loc => (
                   <Option key={loc.value} value={loc.value}>
                     {loc.value} {loc.label && loc.label !== loc.value ? `(${loc.label})` : ''}
@@ -2006,8 +2069,8 @@ const MobileLocationInventory = () => {
       >
         {editingItem && (
           <div>
-            <p><strong>商品:</strong> {editingItem.sku_code || editingItem.code}</p>
-            <p><strong>货位:</strong> {selectedLocation?.code}</p>
+            <p><strong>商品:</strong> {editingItem.sku_code !== undefined && editingItem.sku_code !== null && editingItem.sku_code !== '' ? editingItem.sku_code : <span style={{color: 'red'}}>缺少 sku_code 字段</span>}</p>
+            <p><strong>当前库位:</strong> {selectedLocation?.location_code || '未知'}</p>
             <p><strong>当前数量:</strong> {(editingItem.stock_quantity ?? editingItem.quantity ?? 0)} 件</p>
             
             <div style={{ marginBottom: 16 }}>
@@ -2029,150 +2092,106 @@ const MobileLocationInventory = () => {
 
       {/* 添加商品到库位弹窗 */}
       <Modal
-        title={`添加商品到 ${selectedLocation?.code || '库位'}`}
+        title={`上架到 ${selectedLocation?.location_code || '库位'}`}
         open={addProductVisible}
         onCancel={() => setAddProductVisible(false)}
-        onOk={handleAddProduct}
-        confirmLoading={loading}
-        okText="添加"
-        cancelText="取消"
+        footer={null}
         centered
       >
         <div>
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', marginBottom: 8 }}>
-              <strong>商品编码:</strong>
-            </label>
-            <div style={{ position: 'relative' }}>
-              <Input
-                id="productInput"
-                value={inputCode}
-                onChange={handleInputChange}
-                placeholder="输入商品编码或搜索商品"
-                suffix={searchLoading ? <LoadingOutlined /> : <SearchOutlined />}
-                autoComplete="off"
-              />
-              
-              {/* 搜索建议下拉列表 */}
-              {showSuggestions && productSuggestions.length > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  backgroundColor: 'white',
-                  border: '1px solid #d9d9d9',
-                  borderTop: 'none',
-                  borderRadius: '0 0 4px 4px',
-                  maxHeight: '200px',
-                  overflowY: 'auto',
-                  zIndex: 1000,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-                }}>
-                  {productSuggestions.map((product, index) => (
-                    <div
-                      key={product._id || product.id || index}
-                      style={{
-                        padding: '8px 12px',
-                        cursor: 'pointer',
-                        borderBottom: index < productSuggestions.length - 1 ? '1px solid #f0f0f0' : 'none',
-                        backgroundColor: selectedProduct && 
-                          (selectedProduct._id === product._id || selectedProduct.id === product.id) 
-                          ? '#f6ffed' : 'white'
-                      }}
-                      onClick={() => selectSuggestion(product)}
-                      onMouseEnter={(e) => e.target.style.backgroundColor = '#f5f5f5'}
-                      onMouseLeave={(e) => {
-                        e.target.style.backgroundColor = selectedProduct && 
-                          (selectedProduct._id === product._id || selectedProduct.id === product.id) 
-                          ? '#f6ffed' : 'white';
-                      }}
-                    >
-                      <div style={{ fontWeight: 'bold', color: '#1890ff' }}>{product.code}</div>
-                      {product.name && <div style={{ fontSize: '12px', color: '#666' }}>{product.name}</div>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            
-            {/* 显示已选择的商品信息 */}
-            {selectedProduct && (
-              <div style={{ 
-                marginTop: 8, 
-                padding: 8, 
-                backgroundColor: '#f6ffed', 
-                border: '1px solid #b7eb8f',
-                borderRadius: 4 
-              }}>
-                <div><strong>已选择:</strong> {selectedProduct.code}</div>
-                {selectedProduct.name && <div>{selectedProduct.name}</div>}
-              </div>
-            )}
-          </div>
-
-          {/* SKU选择 */}
-          {availableSkus.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', marginBottom: 8 }}>
-                <strong>选择SKU:</strong>
-              </label>
-              <Select
-                style={{ width: '100%' }}
-                placeholder="请选择具体的SKU"
-                value={selectedSku?.code}
-                onChange={(value) => {
-                  const sku = availableSkus.find(s => s.code === value);
-                  setSelectedSku(sku);
+          <div style={{ marginBottom: 12, fontWeight: 'bold' }}>无货位商品：</div>
+          {noLocationItems.length === 0 ? (
+            <div style={{ color: '#999', marginBottom: 16 }}>暂无无货位商品</div>
+          ) : (
+            noLocationItems.map(item => (
+              <div
+                key={item.sku_code}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  marginBottom: 8,
+                  background: selectedNoLocItem && selectedNoLocItem.sku_code === item.sku_code ? '#e6f7ff' : '#fff',
+                  borderRadius: 4,
+                  padding: 4,
+                  cursor: 'pointer',
+                  border: selectedNoLocItem && selectedNoLocItem.sku_code === item.sku_code ? '2px solid #1890ff' : '1px solid #eee'
                 }}
-                showSearch
-                filterOption={(input, option) => {
-                  if (!option || !option.children) return false;
-                  return option.children.toString().toLowerCase().indexOf(input.toLowerCase()) >= 0;
+                onClick={() => {
+                  setSelectedNoLocItem(item);
+                  setSelectedProduct(item);
+                  setSelectedSku({
+                    sku_code: item.sku_code,
+                    sku_color: item.sku_color,
+                    sku_size: item.sku_size
+                  });
+                  setAddQuantity(item.stock_quantity);
                 }}
               >
-                {availableSkus.map(sku => (
-                  <Option key={sku.code} value={sku.code}>
-                    {sku.code} {sku.color && `- ${sku.color}`} {sku.size && `- ${sku.size}`}
-                  </Option>
-                ))}
-              </Select>
-              
-              {/* 显示已选择的SKU信息 */}
-              {selectedSku && (
-                <div style={{ 
-                  marginTop: 8, 
-                  padding: 8, 
-                  backgroundColor: '#e6f7ff', 
-                  border: '1px solid #91d5ff',
-                  borderRadius: 4 
-                }}>
-                  <div><strong>SKU:</strong> {selectedSku.code}</div>
-                  {selectedSku.color && <div><strong>颜色:</strong> {selectedSku.color}</div>}
-                  {selectedSku.size && <div><strong>尺码:</strong> {selectedSku.size}</div>}
-                  {selectedSku.price && <div><strong>价格:</strong> ¥{selectedSku.price}</div>}
-                </div>
-              )}
+                <img
+                  src={item.image_path || '/no-image.png'}
+                  alt="SKU"
+                  style={{ width: 40, height: 40, objectFit: 'cover', marginRight: 8, borderRadius: 4, border: '1px solid #eee' }}
+                  onError={e => { e.target.src = '/no-image.png'; }}
+                />
+                <span style={{ flex: 1 }}>{item.product_name || item.product_code} | {item.sku_code} | 库存: {item.stock_quantity}</span>
+              </div>
+            ))
+          )}
+          {/* 选中SKU后显示数量输入和上架按钮 */}
+          {selectedNoLocItem && (
+            <div style={{ marginTop: 16, padding: 12, background: '#fafafa', borderRadius: 4 }}>
+              <div style={{ marginBottom: 8 }}>上架SKU: <b>{selectedNoLocItem.sku_code}</b></div>
+              <div style={{ marginBottom: 8 }}>可上架数量: <b>{selectedNoLocItem.stock_quantity}</b></div>
+              <InputNumber
+                min={1}
+                max={selectedNoLocItem.stock_quantity}
+                value={addQuantity}
+                onChange={value => {
+                  if (value > selectedNoLocItem.stock_quantity) {
+                    setAddQuantity(selectedNoLocItem.stock_quantity);
+                  } else {
+                    setAddQuantity(value);
+                  }
+                }}
+                style={{ width: 120, marginRight: 12 }}
+                placeholder="请输入上架数量"
+              />
+              <Button type="primary" onClick={async () => {
+                if (addQuantity > selectedNoLocItem.stock_quantity) {
+                  message.error('上架数量不能大于无货位库存');
+                  return;
+                }
+                try {
+                  setLoading(true);
+                  const toLocationCode = selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code;
+                  const fromLocationCode = '无货位';
+                  const transferData = {
+                    product_id: selectedNoLocItem.product_id,
+                    sku_code: selectedNoLocItem.sku_code,
+                    from_location_code: fromLocationCode,
+                    to_location_code: toLocationCode,
+                    stock_quantity: addQuantity,
+                    operator_id: currentUser.user_id,
+                    notes: '上架操作'
+                  };
+                  if (selectedNoLocItem.sku_color) transferData.sku_color = selectedNoLocItem.sku_color;
+                  if (selectedNoLocItem.sku_size) transferData.sku_size = selectedNoLocItem.sku_size;
+                  await api.post('/inventory/transfer', transferData);
+                  message.success('上架成功');
+                  setAddProductVisible(false);
+                  setSelectedNoLocItem(null);
+                  setAddQuantity(1);
+                  const updatedDetail = await fetchLocationDetail(toLocationCode);
+                  setLocationDetail(updatedDetail);
+                  await fetchLocations();
+                } catch (error) {
+                  message.error('上架失败: ' + (error.response?.data?.message || error.message));
+                } finally {
+                  setLoading(false);
+                }
+              }}>上架</Button>
             </div>
           )}
-          
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', marginBottom: 8 }}>
-              <strong>添加数量:</strong>
-            </label>
-            <InputNumber
-              min={1}
-              value={addQuantity}
-              onChange={value => setAddQuantity(value)}
-              style={{ width: '100%' }}
-              placeholder="请输入添加数量"
-            />
-          </div>
-          
-          <div style={{ fontSize: '12px', color: '#666' }}>
-            <div>• 如果商品已存在于此库位，将增加数量</div>
-            <div>• 如果商品不存在，将创建新的库存记录</div>
-          </div>
         </div>
       </Modal>
 

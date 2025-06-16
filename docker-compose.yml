@@ -6,7 +6,10 @@ services:
     restart: always
     ports:
       - "8612:8612"
-    command: ["mongod", "--port", "8612"]
+    command: ["mongod", "--port", "8612", "--auth"]
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin_user
+      - MONGO_INITDB_ROOT_PASSWORD=your_strong_password
     volumes:
       - ./mongo-data:/data/db
 
@@ -21,15 +24,15 @@ services:
     depends_on:
       - mongo
     volumes:
-      #- ./server:/app
+      - ./server:/app
       - ./server/uploads:/app/uploads
     environment:
-      - MONGODB_URI=mongodb://mongo:8612/cangku-guanli
+      - MONGODB_URI=mongodb://admin_user:your_strong_password@mongo:8612/cangku-guanli?authSource=admin
       - PORT=8611
       - NODE_ENV=production
     command: >
-      bash -c "mkdir -p /app/uploads && 
-      chmod -R 777 /app/uploads && 
+      bash -c "mkdir -p /app/uploads && \
+      chmod -R 777 /app/uploads && \
       npm start"
 
   frontend:
@@ -43,3 +46,10 @@ services:
     volumes:
       - ./cangku-guanli/build:/usr/share/nginx/html
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      
+  frontend-builder:
+    image: node:18
+    working_dir: /app
+    volumes:
+      - /volume1/docker/cccllf1/cangku-allinone/cangku-guanli:/app
+    command: sh -c "npm install && npm run build"

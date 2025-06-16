@@ -1,75 +1,110 @@
 const express = require('express');
 const router = express.Router();
 const Location = require('../models/Location');
-const Inventory = require('../models/Inventory'); // 新增引入
+const Inventory = require('../models/Inventory');
 const mongoose = require('mongoose');
-const auth = require('../middleware/auth'); // 导入认证中间件
+const auth = require('../middleware/auth');
+
+const SPECIAL_NO_LOCATION_CODE = "无货位";
 
 // 获取所有库位
 router.get('/', auth, async (req, res) => {
   try {
-    const locations = await Location.find().sort({ code: 1 }); // 按编码排序
-    // 添加id字段，确保前端兼容性
+    const locations = await Location.find().sort({ location_code: 1 });
     const formattedLocations = locations.map(loc => ({
-      id: loc._id.toString(), // 确保是字符串
-      code: loc.code,
-      name: loc.name || loc.code,
+      location_id: loc._id.toString(),
+      location_code: loc.location_code || loc.code,
+      location_name: loc.location_name || loc.name || loc.code,
       description: loc.description || '',
       priority: loc.priority || 0,
-      defective: !!loc.defective,
+      is_defective: !!loc.defective
     }));
-    res.json(formattedLocations);
+    
+    res.json({
+      success: true,
+      data: formattedLocations,
+      error_code: null,
+      error_message: null
+    });
   } catch (err) {
     console.error('获取库位失败:', err);
-    res.status(500).json({ message: '服务器错误' });
+    res.status(500).json({
+      success: false,
+      data: null,
+      error_code: 'FETCH_LOCATIONS_FAILED',
+      error_message: '获取库位列表失败'
+    });
   }
 });
 
 // 新增库位
 router.post('/', auth, async (req, res) => {
-  console.log('接收到创建库位请求:', req.body);
-  let { code, name, description, priority, defective } = req.body;
-  
-  if (!code || code.trim() === '') {
-    return res.status(400).json({ message: '库位编码不能为空' });
-  }
-  
   try {
-    code = code.trim().toUpperCase(); // 编码统一转为大写
+    let { location_code, code, location_name, name, description, priority, is_defective } = req.body;
+    location_code = location_code || code;
+    location_name = location_name || name || location_code;
     
-    const existingLocation = await Location.findOne({ code });
-    if (existingLocation) {
-      return res.status(400).json({ message: '库位编码已存在' });
+    if (!location_code || location_code.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error_code: 'INVALID_PARAMS',
+        error_message: 'location_code 不能为空'
+      });
     }
+
+    location_code = location_code.trim().toUpperCase();
+    const existingLocation = await Location.findOne({ location_code });
     
-    const locationName = name && name.trim() !== '' ? name.trim() : code;
-    
-    const location = await Location.create({ 
-      code, 
-      name: locationName,
+    if (existingLocation) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error_code: 'LOCATION_CODE_EXISTS',
+        error_message: 'location_code 已存在'
+      });
+    }
+
+    const location = await Location.create({
+      location_code,
+      location_name,
       description: description || '',
       priority: Number(priority) || 0,
-      defective: !!defective
+      is_defective: !!is_defective
     });
-    
-    console.log('创建库位成功:', location);
-    
+
     const formattedLocation = {
-      id: location._id.toString(),
-      code: location.code,
-      name: location.name,
+      location_id: location._id.toString(),
+      location_code: location.location_code,
+      location_name: location.location_name,
       description: location.description || '',
       priority: location.priority || 0,
-      defective: !!location.defective,
+      is_defective: !!location.is_defective,
+      created_at: new Date().toISOString()
     };
-    
-    res.status(201).json(formattedLocation);
+
+    res.status(201).json({
+      success: true,
+      data: formattedLocation,
+      error_code: null,
+      error_message: null
+    });
   } catch (err) {
     console.error('创建库位失败:', err);
     if (err.code === 11000) {
-        return res.status(400).json({ message: '库位编码已存在 (E11000)' });
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error_code: 'DUPLICATE_LOCATION_CODE',
+        error_message: 'location_code 已存在 (E11000)'
+      });
     }
-    res.status(400).json({ message: err.message });
+    res.status(400).json({
+      success: false,
+      data: null,
+      error_code: 'CREATE_LOCATION_FAILED',
+      error_message: err.message
+    });
   }
 });
 
@@ -78,174 +113,249 @@ router.get('/:id', auth, async (req, res) => {
   try {
     const location = await Location.findById(req.params.id);
     if (!location) {
-      return res.status(404).json({ message: '库位不存在' });
+      return res.status(404).json({
+        success: false,
+        data: null,
+        error_code: 'LOCATION_NOT_FOUND',
+        error_message: '库位不存在'
+      });
     }
-    
+
     const formattedLocation = {
-      id: location._id.toString(),
-      code: location.code,
-      name: location.name || location.code,
+      location_id: location._id.toString(),
+      location_code: location.location_code || location.code,
+      location_name: location.location_name || location.name || location.location_code || location.code,
       description: location.description || '',
       priority: location.priority || 0,
-      defective: !!location.defective,
+      is_defective: !!location.is_defective
     };
-    
-    res.json(formattedLocation);
+
+    res.json({
+      success: true,
+      data: formattedLocation,
+      error_code: null,
+      error_message: null
+    });
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    res.status(400).json({
+      success: false,
+      data: null,
+      error_code: 'FETCH_LOCATION_FAILED',
+      error_message: err.message
+    });
   }
 });
 
 // 更新库位
 router.put('/:id', auth, async (req, res) => {
   try {
-    let { code, name, description, priority, defective } = req.body;
-    
-    if (!code || code.trim() === '') {
-      return res.status(400).json({ message: '库位编码不能为空' });
+    let { location_code, code, location_name, name, description, priority, is_defective } = req.body;
+    location_code = location_code || code;
+    location_name = location_name || name || location_code;
+
+    if (!location_code || location_code.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error_code: 'INVALID_PARAMS',
+        error_message: 'location_code 不能为空'
+      });
     }
 
-    const targetLocationId = req.params.id;
-    code = code.trim().toUpperCase(); // 编码统一转为大写
-
-    // 检查目标货位是否存在
-    const targetLocation = await Location.findById(targetLocationId);
+    const target_location_id = req.params.id;
+    location_code = location_code.trim().toUpperCase();
+    
+    const targetLocation = await Location.findById(target_location_id);
     if (!targetLocation) {
-        return res.status(404).json({ message: '要更新的库位不存在' });
-    }
-    
-    // 检查新编码是否已被其他库位使用
-    if (code !== targetLocation.code) { // 只有当编码改变时才检查冲突
-        const existingLocationWithNewCode = await Location.findOne({ 
-          code: code, 
-          _id: { $ne: targetLocationId } 
-        });
-        if (existingLocationWithNewCode) {
-          return res.status(400).json({ message: '新的库位编码已被其他记录使用' });
-        }
+      return res.status(404).json({
+        success: false,
+        data: null,
+        error_code: 'LOCATION_NOT_FOUND',
+        error_message: '要更新的库位不存在'
+      });
     }
 
-    const oldLocationCode = targetLocation.code; // 保存旧的货位编码，以便下面更新Inventory
-    const oldLocationName = targetLocation.name;
-    
-    const locationName = name && name.trim() !== '' ? name.trim() : code;
-    
+    if (location_code !== targetLocation.location_code) {
+      const existingLocationWithNewCode = await Location.findOne({
+        location_code: location_code,
+        _id: { $ne: target_location_id }
+      });
+      
+      if (existingLocationWithNewCode) {
+        return res.status(400).json({
+          success: false,
+          data: null,
+          error_code: 'LOCATION_CODE_EXISTS',
+          error_message: '新的 location_code 已被其他记录使用'
+        });
+      }
+    }
+
+    const old_location_code = targetLocation.location_code;
+    const old_location_name = targetLocation.location_name;
+
     const updatedLocation = await Location.findByIdAndUpdate(
-      targetLocationId,
-      { 
-        code: code,
-        name: locationName,
+      target_location_id,
+      {
+        location_code,
+        location_name,
         description: description || '',
         priority: Number(priority) || 0,
-        defective: !!defective
+        is_defective: !!is_defective,
+        updated_at: new Date()
       },
       { new: true, runValidators: true }
     );
-    
+
     if (!updatedLocation) {
-      // 理论上前面已经检查过findById，这里应该不会触发，但作为保险
-      return res.status(404).json({ message: '库位更新失败，未找到记录' });
+      return res.status(404).json({
+        success: false,
+        data: null,
+        error_code: 'UPDATE_FAILED',
+        error_message: '库位更新失败，未找到记录'
+      });
     }
 
-    // 如果货位编码或名称发生变化，则更新Inventory中相关的记录
-    if (updatedLocation.code !== oldLocationCode || updatedLocation.name !== oldLocationName) {
-      console.log(`库位 ${targetLocationId} (${oldLocationCode}) 信息已更改为 ${updatedLocation.code} (${updatedLocation.name})，开始更新库存记录...`);
+    // 更新 Inventory 中相关字段
+    if (updatedLocation.location_code !== old_location_code || updatedLocation.location_name !== old_location_name) {
       try {
         const result = await Inventory.updateMany(
-          { "locations.location_id": targetLocationId },
-          { 
-            "$set": { 
-              "locations.$[elem].locationCode": updatedLocation.code,
-              "locations.$[elem].locationName": updatedLocation.name
+          { "locations.location_id": target_location_id },
+          {
+            "$set": {
+              "locations.$[elem].location_code": updatedLocation.location_code,
+              "locations.$[elem].location_name": updatedLocation.location_name
             }
           },
-          { arrayFilters: [{ "elem.location_id": new mongoose.Types.ObjectId(targetLocationId) }] }
+          { arrayFilters: [{ "elem.location_id": new mongoose.Types.ObjectId(target_location_id) }] }
         );
-        console.log(`更新了 ${result.modifiedCount} 条库存记录中关于库位 ${targetLocationId} 的信息。`);
+        console.log(`更新了 ${result.modifiedCount} 条库存记录中关于库位 ${target_location_id} 的信息。`);
       } catch (inventoryUpdateError) {
-        console.error(`更新库存记录中库位信息失败 (库位ID: ${targetLocationId}):`, inventoryUpdateError);
-        // 即使这里失败，主库位信息已更新，所以不回滚或抛出主错误，但记录日志
-        // 可以考虑更复杂的错误处理或补偿机制
+        console.error(`更新库存记录中库位信息失败 (库位ID: ${target_location_id}):`, inventoryUpdateError);
       }
     }
-    
+
     const formattedLocation = {
-      id: updatedLocation._id.toString(),
-      code: updatedLocation.code,
-      name: updatedLocation.name,
+      location_id: updatedLocation._id.toString(),
+      location_code: updatedLocation.location_code,
+      location_name: updatedLocation.location_name,
       description: updatedLocation.description || '',
       priority: updatedLocation.priority || 0,
-      defective: !!updatedLocation.defective,
+      is_defective: !!updatedLocation.is_defective,
+      updated_at: new Date().toISOString()
     };
-    
-    res.json(formattedLocation);
+
+    res.json({
+      success: true,
+      data: formattedLocation,
+      error_code: null,
+      error_message: null
+    });
   } catch (err) {
-    console.error('更新库位失败:', err);
-    if (err.code === 11000) {
-        return res.status(400).json({ message: '库位编码已存在 (E11000)' });
-    }
-    res.status(400).json({ message: err.message });
+    res.status(400).json({
+      success: false,
+      data: null,
+      error_code: 'UPDATE_LOCATION_FAILED',
+      error_message: err.message
+    });
   }
 });
 
 // 删除库位
 router.delete('/:id', auth, async (req, res) => {
   try {
-    const locationId = req.params.id;
-
-    // 检查此库位是否在任何Inventory记录中被引用且有库存
-    const inventoryWithLocation = await Inventory.findOne({
-      'locations.location_id': locationId,
-      'locations.quantity': { $gt: 0 }
-    });
-
-    // 另一种更精确的检查方式是检查 locations 数组中特定 location_id 下的 skus 是否有 quantity > 0
-    // 或者检查 locations 数组中特定 location_id 的 quantity 是否大于 0
+    const location_id = req.params.id;
+    
     const detailedInventoryCheck = await Inventory.findOne({
-        locations: {
-            $elemMatch: {
-                location_id: new mongoose.Types.ObjectId(locationId),
-                quantity: { $gt: 0 }
-            }
+      locations: {
+        $elemMatch: {
+          location_id: new mongoose.Types.ObjectId(location_id),
+          stock_quantity: { $gt: 0 }
         }
+      }
     });
 
     if (detailedInventoryCheck) {
-      return res.status(400).json({ message: '无法删除：此库位尚有库存。请先清空或转移此库位的库存。' });
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error_code: 'LOCATION_HAS_INVENTORY',
+        error_message: '无法删除：此库位尚有库存。请先清空或转移此库位的库存。'
+      });
     }
 
-    // 如果没有库存关联，则可以安全删除货位
-    const location = await Location.findByIdAndDelete(locationId);
+    const location = await Location.findByIdAndDelete(location_id);
     if (!location) {
-      return res.status(404).json({ message: '库位不存在' });
+      return res.status(404).json({
+        success: false,
+        data: null,
+        error_code: 'LOCATION_NOT_FOUND',
+        error_message: '库位不存在'
+      });
     }
-    res.json({ message: '删除成功' });
+
+    res.json({
+      success: true,
+      data: {
+        message: '删除成功',
+        location_id: location_id,
+        deleted_at: new Date().toISOString()
+      },
+      error_code: null,
+      error_message: null
+    });
   } catch (err) {
     console.error('删除库位失败:', err);
-    res.status(500).json({ message: err.message }); // 改为500，因为可能是 ObjectId 格式错误等
+    res.status(500).json({
+      success: false,
+      data: null,
+      error_code: 'DELETE_LOCATION_FAILED',
+      error_message: err.message
+    });
   }
 });
 
 // 按编码查找库位
-router.get('/code/:code', auth, async (req, res) => {
+router.get('/code/:location_code', auth, async (req, res) => {
   try {
-    const location = await Location.findOne({ code: req.params.code.toUpperCase() }); //查询时也转大写
+    const location = await Location.findOne({ 
+      code: req.params.location_code.toUpperCase() 
+    });
+
     if (!location) {
-      return res.status(404).json({ message: '库位不存在' });
+      return res.status(404).json({
+        success: false,
+        data: null,
+        error_code: 'LOCATION_NOT_FOUND',
+        error_message: '库位不存在'
+      });
     }
-    
+
     const formattedLocation = {
-      id: location._id.toString(),
-      code: location.code,
-      name: location.name || location.code,
+      location_id: location._id.toString(),
+      location_code: location.code,
+      location_name: location.name || location.code,
       description: location.description || '',
       priority: location.priority || 0,
-      defective: !!location.defective,
+      is_defective: !!location.is_defective,
+      created_at: location.created_at || location.createdAt,
+      updated_at: location.updated_at || location.updatedAt
     };
-    
-    res.json(formattedLocation);
+
+    res.json({
+      success: true,
+      data: formattedLocation,
+      error_code: null,
+      error_message: null
+    });
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    console.error('获取库位详情失败:', err);
+    res.status(500).json({
+      success: false,
+      data: null,
+      error_code: 'FETCH_LOCATION_FAILED',
+      error_message: '获取库位详情失败'
+    });
   }
 });
 

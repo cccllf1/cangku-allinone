@@ -17,7 +17,7 @@ const Settings = () => {
   const [users, setUsers] = useState([]);
   const [userLoading, setUserLoading] = useState(false);
   const [addUserModal, setAddUserModal] = useState(false);
-  const [newUser, setNewUser] = useState({ username: '', password: '', role: 'user' });
+  const [newUser, setNewUser] = useState({ user_name: '', password: '', role: 'user' });
   const [resetPwdUser, setResetPwdUser] = useState(null);
   const [resetPwdModal, setResetPwdModal] = useState(false);
   const [resetPwd, setResetPwd] = useState('');
@@ -156,7 +156,7 @@ const Settings = () => {
   };
 
   const handleAddUser = async () => {
-    if (!newUser.username || !newUser.password) {
+    if (!newUser.user_name || !newUser.password) {
       message.warning('用户名和密码不能为空');
       return;
     }
@@ -164,19 +164,19 @@ const Settings = () => {
       await api.post('/auth/users', newUser);
       message.success('添加成功');
       setAddUserModal(false);
-      setNewUser({ username: '', password: '', role: 'user' });
+      setNewUser({ user_name: '', password: '', role: 'user' });
       fetchUsers();
     } catch (e) {
       message.error(e.response?.data?.message || '添加失败');
     }
   };
 
-  const handleDeleteUser = async (id) => {
+  const handleDeleteUser = async (user_id) => {
     Modal.confirm({
       title: '确认删除该用户？',
       onOk: async () => {
         try {
-          await api.delete(`/auth/users/${id}`);
+          await api.delete(`/auth/users/${user_id}`);
           message.success('删除成功');
           fetchUsers();
         } catch (e) {
@@ -189,7 +189,7 @@ const Settings = () => {
   const handleResetPwd = async () => {
     if (!resetPwdUser || !resetPwd) return;
     try {
-      await api.post(`/auth/users/${resetPwdUser.id || resetPwdUser._id}/reset_password`, { new_password: resetPwd });
+      await api.post(`/auth/users/${resetPwdUser.user_id}/reset_password`, { new_password: resetPwd });
       message.success('密码已重置');
       setResetPwdModal(false);
       setResetPwd('');
@@ -205,7 +205,7 @@ const Settings = () => {
       return;
     }
     try {
-      await api.post('/auth/change_password', { oldPassword: oldPwd, newPassword: newPwd });
+      await api.post('/auth/change_password', { old_password: oldPwd, new_password: newPwd });
       message.success('密码修改成功');
       setChangePwdModal(false);
       setOldPwd('');
@@ -358,10 +358,10 @@ const Settings = () => {
                 <List.Item
                   actions={[
                     <a key="reset" onClick={() => { setResetPwdUser(user); setResetPwdModal(true); }}>重置密码</a>,
-                    <a key="delete" style={{ color: 'red' }} onClick={() => handleDeleteUser(user.id || user._id)}>删除</a>
+                    <a key="delete" style={{ color: 'red' }} onClick={() => handleDeleteUser(user.user_id)}>删除</a>
                   ]}
                 >
-                  <Space><UserOutlined />{user.username}<Tag>{user.role}</Tag></Space>
+                  <Space><UserOutlined />{user.user_name}<Tag>{user.role}</Tag></Space>
                 </List.Item>
               )}
             />
@@ -375,7 +375,7 @@ const Settings = () => {
             >
               <Form layout="vertical">
                 <Form.Item label="用户名">
-                  <Input value={newUser.username} onChange={e => setNewUser({ ...newUser, username: e.target.value })} />
+                  <Input value={newUser.user_name} onChange={e => setNewUser({ ...newUser, user_name: e.target.value })} />
                 </Form.Item>
                 <Form.Item label="密码">
                   <Input.Password value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} />
@@ -389,7 +389,7 @@ const Settings = () => {
               </Form>
             </Modal>
             <Modal
-              title={`重置密码：${resetPwdUser?.username || ''}`}
+              title={`重置密码：${resetPwdUser?.user_name || ''}`}
               open={resetPwdModal}
               onCancel={() => setResetPwdModal(false)}
               onOk={handleResetPwd}
@@ -405,7 +405,7 @@ const Settings = () => {
           </Tabs.TabPane>
           <Tabs.TabPane tab="修改密码" key="password">
             <div style={{ textAlign: 'center', marginBottom: 16, color: '#888' }}>
-              当前账号：{currentUser?.username || '未知'}
+              当前账号：{currentUser?.user_name || '未知'}
             </div>
             <Form layout="vertical" style={{ maxWidth: 400, margin: '0 auto' }}>
               <Form.Item label="原密码">

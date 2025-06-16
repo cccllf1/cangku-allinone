@@ -998,8 +998,8 @@ const MobileOutbound = () => {
         try {
           // 调用API执行出库操作
           const outboundData = {
-            productCode: item.productCode,
-            locationCode: item.location,
+            product_code: item.productCode,
+            location_code: item.location,
             quantity: item.quantity
           };
           

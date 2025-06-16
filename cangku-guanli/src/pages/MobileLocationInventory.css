@@ -442,4 +442,7 @@
   .location-detail-modal .ant-modal-body::-webkit-scrollbar-thumb:hover {
     background: rgba(0,0,0,0.6) !important;
   }
-} 
+}
+
+/* .hide-horizontal-scrollbar::-webkit-scrollbar { display: none; }
+.hide-horizontal-scrollbar { scrollbar-width: none; -ms-overflow-style: none; } */ 

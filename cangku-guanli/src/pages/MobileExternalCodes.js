@@ -46,12 +46,12 @@ const MobileExternalCodes = () => {
         if (product.skus && product.skus.length > 0) {
           product.skus.forEach(sku => {
             allSkus.push({
-              skuCode: sku.code,
-              productCode: product.code,
-              productName: product.name,
-              color: sku.color,
-              size: sku.size,
-              image: sku.image || product.image || '',
+              sku_code: sku.sku_code || sku.code,
+              product_code: product.product_code || product.code,
+              product_name: product.product_name || product.name,
+              sku_color: sku.sku_color || sku.color,
+              sku_size: sku.sku_size || sku.size,
+              image_path: sku.image_path || sku.image || product.image_path || product.image || '',
             });
           });
         }
@@ -65,11 +65,11 @@ const MobileExternalCodes = () => {
   };
 
   // 查询SKU的外部条码
-  const fetchExternalCodes = async (skuCode) => {
-    if (!skuCode) return;
+  const fetchExternalCodes = async (sku_code) => {
+    if (!sku_code) return;
       setLoading(true);
     try {
-      const res = await api.get(`/sku/${skuCode}/external-codes`);
+      const res = await api.get(`/sku/${sku_code}/external-codes`);
       setExternalCodes(res.data || []);
     } catch (error) {
       message.error('获取外部条码失败');
@@ -80,10 +80,10 @@ const MobileExternalCodes = () => {
   };
 
   // 选择SKU
-  const handleSkuSelect = (skuCode) => {
-    const sku = skuList.find(s => s.skuCode === skuCode);
+  const handleSkuSelect = (sku_code) => {
+    const sku = skuList.find(s => s.sku_code === sku_code);
     setSelectedSku(sku);
-    fetchExternalCodes(skuCode);
+    fetchExternalCodes(sku_code);
   };
 
   // 添加外部条码
@@ -94,10 +94,10 @@ const MobileExternalCodes = () => {
     }
     setLoading(true);
     try {
-      await api.post(`/sku/${selectedSku.skuCode}/external-codes`, { external_code: addExternalCodeValue.trim() });
+      await api.post(`/sku/${selectedSku.sku_code}/external-codes`, { external_code: addExternalCodeValue.trim() });
       message.success('添加外部条码成功');
       setAddExternalCodeValue('');
-      fetchExternalCodes(selectedSku.skuCode);
+      fetchExternalCodes(selectedSku.sku_code);
     } catch (error) {
         message.error('添加外部条码失败');
     } finally {
@@ -110,9 +110,9 @@ const MobileExternalCodes = () => {
     if (!selectedSku) return;
     setLoading(true);
     try {
-      await api.delete(`/sku/${selectedSku.skuCode}/external-codes/${code}`);
+      await api.delete(`/sku/${selectedSku.sku_code}/external-codes/${code}`);
       message.success('删除外部条码成功');
-      fetchExternalCodes(selectedSku.skuCode);
+      fetchExternalCodes(selectedSku.sku_code);
     } catch (error) {
       message.error('删除外部条码失败');
     } finally {
@@ -124,11 +124,11 @@ const MobileExternalCodes = () => {
   const filteredSkus = skuList.filter(sku => {
     const v = searchValue.trim().toLowerCase();
     return (
-      sku.skuCode.toLowerCase().includes(v) ||
-      (sku.productCode && sku.productCode.toLowerCase().includes(v)) ||
-      (sku.productName && sku.productName.toLowerCase().includes(v)) ||
-      (sku.color && sku.color.toLowerCase().includes(v)) ||
-      (sku.size && sku.size.toLowerCase().includes(v))
+      sku.sku_code.toLowerCase().includes(v) ||
+      (sku.product_code && sku.product_code.toLowerCase().includes(v)) ||
+      (sku.product_name && sku.product_name.toLowerCase().includes(v)) ||
+      (sku.sku_color && sku.sku_color.toLowerCase().includes(v)) ||
+      (sku.sku_size && sku.sku_size.toLowerCase().includes(v))
     );
   });
 
@@ -173,14 +173,14 @@ const MobileExternalCodes = () => {
           style={{ maxHeight: 200, overflow: 'auto', marginBottom: 8 }}
           renderItem={sku => (
             <List.Item
-              style={{ cursor: 'pointer', background: selectedSku && selectedSku.skuCode === sku.skuCode ? '#e6f7ff' : undefined }}
-              onClick={() => handleSkuSelect(sku.skuCode)}
+              style={{ cursor: 'pointer', background: selectedSku && selectedSku.sku_code === sku.sku_code ? '#e6f7ff' : undefined }}
+              onClick={() => handleSkuSelect(sku.sku_code)}
             >
             <Space>
-                <span><b>{sku.productName}</b> ({sku.productCode})</span>
-                <Tag color="blue">{sku.color}</Tag>
-                <Tag color="green">{sku.size}</Tag>
-                <Tag color="purple">{sku.skuCode}</Tag>
+                <span><b>{sku.product_name}</b> ({sku.product_code})</span>
+                <Tag color="blue">{sku.sku_color}</Tag>
+                <Tag color="green">{sku.sku_size}</Tag>
+                <Tag color="purple">{sku.sku_code}</Tag>
             </Space>
             </List.Item>
           )}
@@ -191,11 +191,11 @@ const MobileExternalCodes = () => {
       {selectedSku && (
         <Card title={<span>SKU信息</span>} style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-            {selectedSku.image && <img src={selectedSku.image} alt="sku" style={{ width: 60, height: 60, objectFit: 'contain', marginRight: 16 }} />}
+            {selectedSku.image_path && <img src={selectedSku.image_path} alt="sku" style={{ width: 60, height: 60, objectFit: 'contain', marginRight: 16 }} />}
             <div>
-              <div><b>{selectedSku.productName}</b> ({selectedSku.productCode})</div>
-              <div>SKU编码: <Tag color="purple">{selectedSku.skuCode}</Tag></div>
-              <div>颜色: <Tag color="blue">{selectedSku.color}</Tag> 尺码: <Tag color="green">{selectedSku.size}</Tag></div>
+              <div><b>{selectedSku.product_name}</b> ({selectedSku.product_code})</div>
+              <div>SKU编码: <Tag color="purple">{selectedSku.sku_code}</Tag></div>
+              <div>颜色: <Tag color="blue">{selectedSku.sku_color}</Tag> 尺码: <Tag color="green">{selectedSku.sku_size}</Tag></div>
             </div>
           </div>
           <div>

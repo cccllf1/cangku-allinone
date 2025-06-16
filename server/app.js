@@ -194,9 +194,9 @@ mongoose.connect(process.env.MONGODB_URI, {
   .then(async () => {
     console.log('MongoDB connected');
     // 直接在这里创建管理员用户
-    const user = await User.findOne({ username: 'wms' });
+    const user = await User.findOne({ user_name: 'wms' });
     if (!user) {
-      await User.create({ username: 'wms', password: '123456', role: 'admin' });
+      await User.create({ user_name: 'wms', password: '123456', role: 'admin' });
       console.log('管理员用户已创建：wms/123456');
     } else {
       console.log('管理员用户已存在');

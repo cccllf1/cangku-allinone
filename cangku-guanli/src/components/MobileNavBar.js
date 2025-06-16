@@ -38,7 +38,8 @@ const MobileNavBar = ({ currentPage }) => {
     {
       key: 'pdaInbound',
       label: 'PDA入库',
-      icon: <ScanOutlined />
+      icon: <ScanOutlined />,
+      onClick: () => { window.location.href = '/pda-app.html'; }
     },
     {
       key: 'locationManagement',
@@ -57,7 +58,11 @@ const MobileNavBar = ({ currentPage }) => {
     }
   ];
 
-  const handleMenuClick = ({ key }) => {
+  const handleMenuClick = ({ key, item }) => {
+    if (item && typeof item.onClick === 'function') {
+      item.onClick();
+      return;
+    }
     switch (key) {
       case 'products':
         navigate('/mobile-product-manage');
@@ -67,9 +72,6 @@ const MobileNavBar = ({ currentPage }) => {
         break;
       case 'externalCodes':
         navigate('/mobile-external-codes');
-        break;
-      case 'pdaInbound':
-        navigate('/mobile-pda-inbound');
         break;
       case 'locationManagement':
         navigate('/mobile-location-manage');
@@ -110,6 +112,7 @@ const MobileNavBar = ({ currentPage }) => {
         {currentPage === 'externalCodes' && '外部条码管理'}
         {currentPage === 'pdaInbound' && 'PDA入库'}
         {currentPage === 'locationManagement' && '货位管理'}
+        {currentPage === 'locationInventory' && '货位库存'}
         {currentPage === 'settings' && '系统设置'}
       </h2>
       <Space size={8} style={{ margin: 0 }}>

@@ -47,60 +47,74 @@ const MobileSKUManage = () => {
   const [importMode, setImportMode] = useState('add'); // 'add' or 'cover'
   const [importPreview, setImportPreview] = useState([]);
   const [importLoading, setImportLoading] = useState(false);
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 100 });
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
     fetchAllSkus();
   }, []);
 
-  const fetchAllSkus = async () => {
+  const fetchAllSkus = async (page = 1, pageSize = 100) => {
     setLoading(true);
     try {
+      // 获取商品、库存
       const productsRes = await api.get('/products/');
       const products = productsRes.data || [];
       const inventoryRes = await api.get('/inventory/');
       const inventoryList = inventoryRes.data || [];
-      // 构建SKU库存映射
+      // SKU库存映射、货位映射
       const skuInventoryMap = {};
+      const skuLocationsMap = {};
       inventoryList.forEach(inv => {
-        // 1. SKU独立行
-        if (inv.productCode && inv.productCode.includes('-')) {
-          skuInventoryMap[inv.productCode] = inv.quantity || 0;
+        if (inv.product_code && inv.product_code.includes('-')) {
+          skuInventoryMap[inv.product_code] = inv.quantity || 0;
         }
-        // 2. 主商品下的SKU
         if (inv.locations && Array.isArray(inv.locations)) {
           inv.locations.forEach(loc => {
             if (loc.skus && Array.isArray(loc.skus)) {
               loc.skus.forEach(sku => {
-                if (!skuInventoryMap[sku.code]) skuInventoryMap[sku.code] = 0;
-                skuInventoryMap[sku.code] += sku.quantity || 0;
+                const code = sku.sku_code || sku.code;
+                if (!skuInventoryMap[code]) skuInventoryMap[code] = 0;
+                skuInventoryMap[code] += sku.quantity || 0;
+                if (!skuLocationsMap[code]) skuLocationsMap[code] = new Set();
+                if (loc.location_code) skuLocationsMap[code].add(loc.location_code);
               });
             }
           });
         }
       });
+      // 采集所有SKU
       const allSkus = [];
       const colorSet = new Set();
       const sizeSet = new Set();
+      let totalCount = 0;
       products.forEach(product => {
         if (product.skus && product.skus.length > 0) {
           product.skus.forEach(sku => {
+            totalCount++;
             allSkus.push({
-              key: sku.code,
-              productCode: product.code,
-              productName: product.name,
-              code: sku.code,
-              color: sku.color,
-              size: sku.size,
-              quantity: skuInventoryMap[sku.code] || 0, // 用实时库存
-              productId: product._id || product.id,
-              skuId: sku._id || sku.id,
+              key: sku.sku_code || sku.code,
+              product_code: product.product_code || product.code,
+              product_name: product.product_name || product.name,
+              sku_code: sku.sku_code || sku.code,
+              sku_color: sku.sku_color || sku.color,
+              sku_size: sku.sku_size || sku.size,
+              stock_quantity: skuInventoryMap[sku.sku_code || sku.code] || 0,
+              locations: Array.from(skuLocationsMap[sku.sku_code || sku.code] || []),
+              external_codes: sku.external_codes || [],
+              product_id: product.product_id || product._id || product.id,
+              sku_id: sku.sku_id || sku._id || sku.id,
             });
-            if (sku.color) colorSet.add(sku.color);
-            if (sku.size) sizeSet.add(sku.size);
+            if (sku.sku_color || sku.color) colorSet.add(sku.sku_color || sku.color);
+            if (sku.sku_size || sku.size) sizeSet.add(sku.sku_size || sku.size);
           });
         }
       });
-      setSkuData(allSkus);
+      setTotal(totalCount);
+      // 分页
+      const start = (page - 1) * pageSize;
+      const end = start + pageSize;
+      setSkuData(allSkus.slice(start, end));
       setColorOptions(Array.from(colorSet));
       setSizeOptions(Array.from(sizeSet));
     } catch (error) {
@@ -128,14 +142,11 @@ const MobileSKUManage = () => {
       const index = newData.findIndex(item => key === item.key);
       if (index > -1) {
         const item = newData[index];
-        // 调试输出productId和row
-        console.log('保存SKU productId:', item.productId, row);
-        // 调用API保存SKU和商品名称
-        await api.post(`/products/${item.productId}/update-sku`, {
-          code: row.code,
-          color: row.color,
-          size: row.size,
-          name: row.productName || item.productName // 新增：支持商品名称修改
+        await api.post(`/products/${item.product_id}/update-sku`, {
+          sku_code: row.sku_code,
+          sku_color: row.sku_color,
+          sku_size: row.sku_size,
+          product_name: row.product_name || item.product_name
         });
         newData.splice(index, 1, { ...item, ...row });
         setSkuData(newData);
@@ -151,16 +162,13 @@ const MobileSKUManage = () => {
     const sku = skuData.find(item => item.key === key);
     if (!sku) return;
     try {
-      // 找到该商品的所有SKU，去掉要删除的那一个
-      const remainSkus = skuData.filter(item => item.productId === sku.productId && item.key !== key)
-        .map(item => ({ code: item.code, color: item.color, size: item.size, name: item.productName }));
+      const remainSkus = skuData.filter(item => item.product_id === sku.product_id && item.key !== key)
+        .map(item => ({ sku_code: item.sku_code, sku_color: item.sku_color, sku_size: item.sku_size, product_name: item.product_name }));
       if (remainSkus.length === 0) {
-        // 没有SKU了，自动删除商品
-        await api.delete(`/products/${sku.productId}`);
+        await api.delete(`/products/${sku.product_id}`);
         message.success('SKU和商品已全部删除');
       } else {
-        // 用PUT更新商品的skus字段
-        await api.put(`/products/${sku.productId}`, {
+        await api.put(`/products/${sku.product_id}`, {
           skus: remainSkus
         });
         message.success('删除成功');
@@ -177,24 +185,32 @@ const MobileSKUManage = () => {
       return;
     }
     const filtered = skuData.filter(item =>
-      (item.productCode && item.productCode.includes(searchValue)) ||
-      (item.productName && item.productName.includes(searchValue)) ||
-      (item.code && item.code.includes(searchValue)) ||
-      (item.color && item.color.includes(searchValue)) ||
-      (item.size && item.size.includes(searchValue))
+      (item.product_code && item.product_code.includes(searchValue)) ||
+      (item.product_name && item.product_name.includes(searchValue)) ||
+      (item.sku_code && item.sku_code.includes(searchValue)) ||
+      (item.sku_color && item.sku_color.includes(searchValue)) ||
+      (item.sku_size && item.sku_size.includes(searchValue))
     );
     setSkuData(filtered);
+  };
+
+  // 分页、排序、筛选事件
+  const handleTableChange = (pagination, filters, sorter) => {
+    setPagination(pagination);
+    fetchAllSkus(pagination.current, pagination.pageSize);
   };
 
   // 导出功能
   const handleExport = () => {
     const exportData = skuData.map(item => ({
-      商品编码: item.productCode,
-      商品名称: item.productName,
-      SKU编码: item.code,
-      颜色: item.color ? item.color : '',
-      尺码: item.size ? item.size : '',
-      库存: item.quantity
+      商品编码: item.product_code,
+      商品名称: item.product_name,
+      SKU编码: item.sku_code,
+      颜色: item.sku_color ? item.sku_color : '',
+      尺码: item.sku_size ? item.sku_size : '',
+      库存: item.stock_quantity,
+      货位: item.locations ? item.locations.join(',') : '',
+      外部条码: item.external_codes ? item.external_codes.join(',') : '',
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
@@ -233,31 +249,31 @@ const MobileSKUManage = () => {
     setImportLoading(true);
     let addCount = 0, coverCount = 0, skipCount = 0;
     try {
-      // 获取现有SKU编码集合
-      const existSkuCodes = new Set(skuData.map(item => item.code));
+      const existSkuCodes = new Set(skuData.map(item => item.sku_code));
       for (const row of importPreview) {
-        const code = row['SKU编码'] || row['sku编码'] || row['skuCode'] || row['code'];
-        const color = row['颜色'] || row['color'];
-        const size = row['尺码'] || row['size'];
-        const productCode = row['商品编码'] || row['productCode'];
-        if (!code || !productCode) { skipCount++; continue; }
-        const exist = existSkuCodes.has(code);
+        const sku_code = row['SKU编码'] || row['sku编码'] || row['skuCode'] || row['code'];
+        const sku_color = row['颜色'] || row['sku_color'] || row['color'];
+        const sku_size = row['尺码'] || row['sku_size'] || row['size'];
+        const product_code = row['商品编码'] || row['product_code'] || row['productCode'];
+        const locations = (row['货位'] || '').split(',').map(s => s.trim()).filter(Boolean);
+        const external_codes = (row['外部条码'] || '').split(',').map(s => s.trim()).filter(Boolean);
+        if (!sku_code || !product_code) { skipCount++; continue; }
+        const exist = existSkuCodes.has(sku_code);
         if (importMode === 'add' && exist) { skipCount++; continue; }
-        // 查找商品ID
-        let productId = '';
-        let product = skuData.find(item => item.productCode === productCode);
+        let product_id = '';
+        let product = skuData.find(item => item.product_code === product_code);
         if (!product) {
-          // 自动新建商品，只传商品编码
-          const res = await api.post('/products', { code: productCode });
-          productId = res.data._id || res.data.id;
+          const res = await api.post('/products', { product_code });
+          product_id = res.data.product_id || res.data._id || res.data.id;
         } else {
-          productId = product.productId;
+          product_id = product.product_id;
         }
-        // 新增或覆盖
-        await api.post(`/products/${productId}/update-sku`, {
-          code,
-          color,
-          size,
+        await api.post(`/products/${product_id}/update-sku`, {
+          sku_code,
+          sku_color,
+          sku_size,
+          locations,
+          external_codes,
         });
         if (exist) coverCount++; else addCount++;
       }
@@ -283,46 +299,14 @@ const MobileSKUManage = () => {
   };
 
   const columns = [
-    {
-      title: '商品编码',
-      dataIndex: 'productCode',
-      width: 100,
-      ellipsis: true,
-    },
-    {
-      title: '商品名称',
-      dataIndex: 'productName',
-      width: 120,
-      editable: true,
-      ellipsis: true,
-    },
-    {
-      title: 'SKU编码',
-      dataIndex: 'code',
-      width: 120,
-      editable: true,
-      ellipsis: true,
-    },
-    {
-      title: '颜色',
-      dataIndex: 'color',
-      width: 80,
-      editable: true,
-      render: (text) => text ? <Tag color="blue">{text}</Tag> : '',
-    },
-    {
-      title: '尺码',
-      dataIndex: 'size',
-      width: 80,
-      editable: true,
-      render: (text) => text ? <Tag color="green">{text}</Tag> : '',
-    },
-    {
-      title: '库存',
-      dataIndex: 'quantity',
-      width: 60,
-      render: (text) => <span>{text}</span>,
-    },
+    { title: '商品编码', dataIndex: 'product_code', width: 100, ellipsis: true, sorter: (a, b) => a.product_code.localeCompare(b.product_code), },
+    { title: '商品名称', dataIndex: 'product_name', width: 120, editable: true, ellipsis: true, sorter: (a, b) => a.product_name.localeCompare(b.product_name), },
+    { title: 'SKU编码', dataIndex: 'sku_code', width: 120, editable: true, ellipsis: true, sorter: (a, b) => a.sku_code.localeCompare(b.sku_code), },
+    { title: '颜色', dataIndex: 'sku_color', width: 80, editable: true, filters: colorOptions.map(c => ({ text: c, value: c })), onFilter: (value, record) => record.sku_color === value, sorter: (a, b) => a.sku_color.localeCompare(b.sku_color), render: (text) => text ? <Tag color="blue">{text}</Tag> : '', },
+    { title: '尺码', dataIndex: 'sku_size', width: 80, editable: true, filters: sizeOptions.map(s => ({ text: s, value: s })), onFilter: (value, record) => record.sku_size === value, sorter: (a, b) => a.sku_size.localeCompare(b.sku_size), render: (text) => text ? <Tag color="green">{text}</Tag> : '', },
+    { title: '库存', dataIndex: 'stock_quantity', width: 60, sorter: (a, b) => a.stock_quantity - b.stock_quantity, render: (text) => <span>{text}</span>, },
+    { title: '货位', dataIndex: 'locations', width: 120, render: (locs) => locs ? locs.join(', ') : '', },
+    { title: '外部条码', dataIndex: 'external_codes', width: 180, render: (codes) => codes ? codes.join(', ') : '', },
     {
       title: '操作',
       dataIndex: 'operation',
@@ -369,14 +353,14 @@ const MobileSKUManage = () => {
       <MobileNavBar currentPage="skuManager" />
       <div style={{ marginBottom: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <Input
-          placeholder="搜索商品编码/名称/SKU/颜色/尺码"
+          placeholder="搜索商品编码/名称/SKU/颜色/尺码/货位/外部条码"
           value={searchValue}
           onChange={e => setSearchValue(e.target.value)}
           onPressEnter={handleSearch}
           style={{ flex: 1, minWidth: 0 }}
         />
         <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>搜索</Button>
-        <Button icon={<PlusOutlined />} onClick={fetchAllSkus}>重置</Button>
+        <Button icon={<PlusOutlined />} onClick={() => fetchAllSkus(1, pagination.pageSize)}>重置</Button>
         <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
         <Button icon={<UploadOutlined />} onClick={() => setImportModalVisible(true)}>导入</Button>
       </div>
@@ -385,12 +369,13 @@ const MobileSKUManage = () => {
           <Table
             loading={loading}
             dataSource={skuData}
-            columns={mergedColumns}
+            columns={columns}
             components={{ body: { cell: EditableCell } }}
-            pagination={false}
+            pagination={{ ...pagination, total, showSizeChanger: true, pageSizeOptions: ['50','100','200','500'] }}
+            onChange={handleTableChange}
             rowClassName="editable-row"
             size="small"
-            scroll={{ x: 700 }}
+            scroll={{ x: 1200 }}
           />
         </div>
       </Form>

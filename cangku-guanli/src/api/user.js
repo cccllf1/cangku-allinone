@@ -37,18 +37,25 @@ export const getMe = () => {
 
 // 修改用户名和密码
 export const updateProfile = (data) => {
-  return api.post('/auth/update_profile', { username: data.new_username });
+  return api.post('/auth/update_profile', { 
+    username: data.new_username,
+    is_admin: data.is_admin
+  });
 };
 
 // 修改密码
 export const updatePassword = (data) => {
   return api.post('/auth/change_password', { 
-    oldPassword: data.old_password, 
-    newPassword: data.new_password 
+    old_password: data.old_password, 
+    new_password: data.new_password 
   });
 };
 
 // 编辑用户
 export const editUser = (userId, data) => {
-  return api.put(`/auth/users/${userId}`, data);
+  return api.put(`/auth/users/${userId}`, {
+    username: data.username,
+    is_admin: data.is_admin,
+    is_active: data.is_active
+  });
 }; 

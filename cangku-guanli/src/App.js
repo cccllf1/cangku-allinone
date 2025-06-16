@@ -9,7 +9,6 @@ import MobileOutbound from './pages/MobileOutbound';
 import MobileProductManage from './pages/MobileProductManage';
 import MobileExternalCodes from './pages/MobileExternalCodes';
 import MobileLocationInventory from './pages/MobileLocationInventory';
-import MobilePDAInbound from './pages/MobilePDAInbound';
 import MobileScanner from './pages/MobileScanner';
 import Settings from './pages/Settings';
 import MobileSKUManage from './pages/MobileSKUManage';
@@ -35,7 +34,6 @@ const AuthMobileOutbound = withAuth(MobileOutbound);
 const AuthMobileProductManage = withAuth(MobileProductManage);
 const AuthMobileExternalCodes = withAuth(MobileExternalCodes);
 const AuthMobileLocationInventory = withAuth(MobileLocationInventory);
-const AuthMobilePDAInbound = withAuth(MobilePDAInbound);
 const AuthMobileScanner = withAuth(MobileScanner);
 const AuthSettings = withAuth(Settings);
 const AuthMobileSKUManage = withAuth(MobileSKUManage);
@@ -56,7 +54,6 @@ function App() {
         <Route path="/mobile-product-manage" element={<AuthMobileProductManage />} />
         <Route path="/mobile-external-codes" element={<AuthMobileExternalCodes />} />
         <Route path="/mobile-location-inventory" element={<AuthMobileLocationInventory />} />
-        <Route path="/mobile-pda-inbound" element={<AuthMobilePDAInbound />} />
         <Route path="/mobile-scanner" element={<AuthMobileScanner />} />
         <Route path="/settings" element={<AuthSettings />} />
         <Route path="/mobile-sku-manage" element={<AuthMobileSKUManage />} />

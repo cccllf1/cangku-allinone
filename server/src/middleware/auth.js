@@ -21,7 +21,7 @@ const auth = async (req, res, next) => {
     // 正常JWT验证流程
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-here');
-      const user = await User.findById(decoded.userId);
+      const user = await User.findById(decoded.user_id);
       if (!user) {
         return res.status(401).json({ message: '用户不存在' });
       }

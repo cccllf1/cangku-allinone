@@ -34,7 +34,7 @@ try {
 
 app.use('/api/sku', skuExternalCodesRoutes);
 
-mongoose.connect('mongodb://192.168.11.252:27017/cangku-guanli', {
+mongoose.connect('mongodb://admin_user:your_strong_password@192.168.11.252:8612/cangku-guanli?authSource=admin', {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })

@@ -332,29 +332,25 @@ const MobileInbound = () => {
   
   // 选择建议的商品
   const selectSuggestion = (product) => {
-    setInputCode(product.code);
+    setInputCode(product.product_code);
     setShowSuggestions(false);
-    
     // 如果产品有SKU，直接显示SKU选择界面
     if (product.has_sku && product.skus && product.skus.length > 0) {
       setCurrentProduct(product);
-      
       // 构建SKU选项
       let skuOpts = product.skus.map(sku => {
         // 确保SKU编码使用"商品编码-颜色-尺码"格式
-        const skuCode = sku.code.startsWith(product.code) 
+        const skuCode = sku.code.startsWith(product.product_code) 
           ? sku.code 
-          : `${product.code}-${sku.color}-${sku.size}`;
-        
+          : `${product.product_code}-${sku.color}-${sku.size}`;
         return {
           value: skuCode,
           label: `${sku.color || ''} ${sku.size || ''} (${skuCode})`,
           sku: {...sku, code: skuCode}
         };
       });
-      
       // 如果是1008商品但没有SKU，添加硬编码的选项
-      if (product.code === "1008" && (!product.skus || product.skus.length === 0)) {
+      if (product.product_code === "1008" && (!product.skus || product.skus.length === 0)) {
         console.log('为1008商品添加默认SKU选项');
         skuOpts = [
           {
@@ -386,7 +382,6 @@ const MobileInbound = () => {
           }
         ];
       }
-      
       setSkuOptions(skuOpts);
       setSelectedSku(null);
       setSkuSelectVisible(true);

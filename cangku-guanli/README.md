@@ -1,70 +1,77 @@
-# Getting Started with Create React App
+# 仓库管理系统前端（移动端）
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+本项目为仓库管理系统的移动端网页（React），支持商品入库、出库、盘点、断码补货、SKU管理、库位管理等功能，适配手机PDA扫码枪。
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## 🚀 快速开始
 
-### `npm start`
+### 1. 安装依赖
+```bash
+npm install
+```
 
-Runs the app in the development mode.\
-Open [http://localhost:8610](http://localhost:8610) to view it in your browser.
+### 2. 启动开发环境
+```bash
+npm start
+```
+- 默认访问地址：http://localhost:8610
+- 也可通过内网IP访问（如 http://192.168.11.252:8610）
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### 3. 打包生产环境
+```bash
+npm run build
+```
+- 打包后文件在 `build/` 目录
+- 用于 Docker/Nginx 部署
 
-### `npm test`
+---
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## ⚙️ 依赖环境
+- Node.js 16+（建议 LTS 版本）
+- npm 8+
+- 推荐使用 Chrome/Edge/国产浏览器最新版
 
-### `npm run build`
+---
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## 📦 主要功能模块
+- 商品入库、出库、盘点、断码补货
+- SKU/商品/库位管理
+- 条码扫码、PDA扫码枪适配
+- API接口与后端服务对接
+- 支持多仓库、多用户
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+---
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## 📖 API文档入口
+- 访问 [http://192.168.11.252:8611/api-docs.html](http://192.168.11.252:8611/api-docs.html) 查看完整接口文档
+- 字段命名规范见 `../API-NAMING-STANDARD.md`
 
-### `npm run eject`
+---
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## 🛠️ 常见问题
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+1. **前端页面403/404？**
+   - 检查 `build/` 目录是否存在，或 Docker/Nginx 配置是否正确。
+2. **接口请求失败？**
+   - 检查后端服务（8611端口）是否已启动，前后端网络是否互通。
+3. **扫码无反应？**
+   - 建议使用 Chrome/Edge 浏览器，或检查扫码枪是否为 HID 键盘模式。
+4. **字段名报错？**
+   - 请严格使用 snake_case 格式，详见 API-NAMING-STANDARD.md。
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+---
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## 👤 维护人/联系方式
+- 负责人：cccllf1
+- GitHub: https://github.com/cccllf1/cangku-allinone
+- 内网服务器：192.168.11.252
 
-## Learn More
+如有问题请先查阅 API 文档和本说明，再联系维护人。
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+---
 
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## 📝 其它说明
+- 本项目基于 [Create React App](https://github.com/facebook/create-react-app) 搭建
+- 仅供公司/团队内部使用，严禁外泄源码
+- 如需二次开发请遵循 API 命名规范
