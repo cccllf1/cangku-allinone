@@ -87,7 +87,8 @@ router.get('/location/:location_code', async (req, res) => {
       error_message: null
     });
   } catch (err) {
-    res.status(500).json({ success: false, data: null, error_code: 'INTERNAL_ERROR', error_message: err.message });
+    res.status(500);
+    res.sendResponse({ success: false, data: null, error_code: 'INTERNAL_ERROR' });
   }
 });
 
@@ -284,84 +285,71 @@ router.get('/by-product/:product_code', (req, res) => {
 // === 新增：按库位聚合库存（库位 → 商品 → SKU） ===
 router.get('/by-location', async (req, res) => {
   try {
-    // 1. 查所有产品SKU图片
-    const products = await Product.find({}, { skus: 1 });
-    const skuImageMap = {};
-    products.forEach(prod => {
-      (prod.skus || []).forEach(sku => {
-        skuImageMap[sku.sku_code] = sku.image_path || sku.image || '';
-      });
-    });
-    // 2. 查所有库存
-    const inventoryRecords = await Inventory.find();
-    // 3. 聚合所有库位
-    const locationMap = {};
-    inventoryRecords.forEach(inv => {
-      const productId = inv.product_id;
-      const productCode = inv.product_code;
-      const productName = inv.product_name;
-      (inv.locations || []).forEach(loc => {
-        const code = loc.location_code;
-        if (!locationMap[code]) {
-          locationMap[code] = { location_code: code, items: [] };
+    // 1. 聚合 Inventory -> location_code 维度
+    const pipeline = [
+      { $unwind: "$locations" },
+      { $unwind: { path: "$locations.skus", preserveNullAndEmptyArrays: true } },
+      { $project: {
+          location_code: "$locations.location_code",
+          product_id: "$product_id",
+          product_code: 1,
+          product_name: 1,
+          sku_code: "$locations.skus.sku_code",
+          sku_color: { $ifNull: ["$locations.skus.sku_color", ""] },
+          sku_size:  { $ifNull: ["$locations.skus.sku_size",  ""] },
+          stock_quantity: {
+            $cond: [ { $ifNull: ["$locations.skus.sku_code", false] }, "$locations.skus.stock_quantity", "$locations.stock_quantity" ]
+          }
         }
-        if (loc.skus && loc.skus.length > 0) {
-          loc.skus.forEach(sku => {
-            locationMap[code].items.push({
-              product_id: productId,
-              product_code: productCode,
-              product_name: productName,
-              sku_code: sku.sku_code,
-              sku_color: sku.sku_color,
-              sku_size: sku.sku_size,
-              stock_quantity: sku.stock_quantity || 0,
-              image_path: skuImageMap[sku.sku_code] || ''
-            });
-          });
-        } else {
-          locationMap[code].items.push({
-            product_id: productId,
-            product_code: productCode,
-            product_name: productName,
-            sku_code: null,
-            sku_color: null,
-            sku_size: null,
-            stock_quantity: loc.stock_quantity || 0,
-            image_path: ''
-          });
+      },
+      // 只保留库存>0 的条目
+      { $match: { stock_quantity: { $gt: 0 } } },
+      { $group: {
+          _id: "$location_code",
+          items: { $push: {
+            product_id: "$product_id",
+            product_code: "$product_code",
+            product_name: "$product_name",
+            sku_code: "$sku_code",
+            sku_color: "$sku_color",
+            sku_size: "$sku_size",
+            stock_quantity: "$stock_quantity"
+          } }
         }
-      });
-    });
-    let data = Object.values(locationMap);
-    // 过滤每个 location 的 items，只保留 stock_quantity > 0
-    data.forEach(loc => {
-      loc.items = loc.items.filter(it => (it.stock_quantity ?? 0) > 0);
-    });
-    // 调试：返回第一个SKU的详细信息用于调试
-    const debugInfo = data.length > 0 && data[0].items.length > 0 ? {
-      first_sku: data[0].items[0],
-      modification_time: new Date().toISOString(),
-      debug_msg: 'API已更新 - 应该包含sku_color和sku_size字段'
-    } : null;
-    
-    res.json({ success: true, data, debug: debugInfo, error_code: null, error_message: null });
+      },
+      { $project: { _id: 0, location_code: "$_id", items: 1 } },
+      { $match: { "items.0": { $exists: true } } },
+      { $sort: { location_code: 1 } }
+    ];
+
+    const data = await Inventory.aggregate(pipeline);
+
+    res.json({ success: true, data, error_code: null, error_message: null });
   } catch (err) {
-    res.status(500).json({ success: false, data: null, error_code: 'INTERNAL_ERROR', error_message: err.message });
+    res.status(500);
+    res.sendResponse({ success: false, data: null, error_code: 'INTERNAL_ERROR' });
   }
 });
 
 // === 新增：按商品聚合全部库存（无参数，返回所有商品） ===
 router.get('/by-product', async (req, res) => {
   try {
-    const inventoryRecords = await Inventory.find();
-    if (!inventoryRecords || inventoryRecords.length === 0) {
-      return res.json({ success: true, data: [], error_code: null, error_message: null });
-    }
-
     const { code: filterCode, page = 1, pageSize = 50 } = req.query;
 
-    // 如果传入 code，则只处理该商品相关库存记录
-    const inventoryFiltered = filterCode ? inventoryRecords.filter(r => r.product_code === filterCode) : inventoryRecords;
+    const invQuery = filterCode ? { product_code: filterCode } : {};
+
+    const inventoryFiltered = await Inventory.find(
+      invQuery,
+      {
+        product_code: 1,
+        product_name: 1,
+        locations: 1
+      }
+    ).lean();
+
+    if (!inventoryFiltered || inventoryFiltered.length === 0) {
+      return res.json({ success: true, data: [], pagination: { page: parseInt(page), pageSize: parseInt(pageSize), total: 0 }, error_code: null, error_message: null });
+    }
 
     const productMap = {}; // { product_code: { product_code, colors: {...} } }
 
@@ -376,13 +364,8 @@ router.get('/by-product', async (req, res) => {
         const locationCode = loc.location_code || loc.locationCode;
         (loc.skus || []).forEach(sku => {
           const skuCode = sku.sku_code || sku.code;
-          let color = sku.sku_color || sku.color;
-          let size  = sku.sku_size  || sku.size;
-          if (!color || !size) {
-            const parts = (skuCode || '').split('-');
-            color = color || parts[1] || '默认颜色';
-            size  = size  || parts[2] || '默认尺码';
-          }
+          const color = sku.sku_color || sku.color || '默认颜色';
+          const size  = sku.sku_size  || sku.size  || '默认尺码';
           if (!productObj.colors[color]) {
             productObj.colors[color] = { color, image_path: sku.image_path || '', sizes: {} };
           }

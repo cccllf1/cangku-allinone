@@ -3,16 +3,20 @@ const mongoose = require('mongoose');
 // 定义SKU的模式
 const skuSchema = new mongoose.Schema({
   sku_code: { type: String, required: true },
+  sku_color: { type: String }, // 标准字段
+  sku_size: { type: String },  // 标准字段
+  stock_quantity: { type: Number, default: 0 },
+  image_path: { type: String },
+  // 保留旧字段兼容
   color: { type: String },
   size: { type: String },
   image: { type: String },
-  image_path: { type: String }, // 新增，兼容前端 image_path
   external_codes: [
     {
       external_code: { type: String, required: true }
     }
   ]
-}, { _id: false });
+}, { _id: false, strict: false });
 
 // 定义外部码关联（商品级，保留不动）
 const external_codeSchema = new mongoose.Schema({

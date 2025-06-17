@@ -21,8 +21,7 @@ const MobileExternalCodes = () => {
   const [selectedSku, setSelectedSku] = useState(null);
   const [externalCodes, setExternalCodes] = useState([]);
   const [searchValue, setSearchValue] = useState('');
-  const [addExternalCodeValue, setAddExternalCodeValue] = useState('');
-  const [scannerVisible, setScannerVisible] = useState(false);
+  const [inputCode, setInputCode] = useState('');
   const [form] = Form.useForm();
   const navigate = useNavigate();
   const location = useLocation();
@@ -88,15 +87,15 @@ const MobileExternalCodes = () => {
 
   // 添加外部条码
   const handleAddExternalCode = async () => {
-    if (!selectedSku || !addExternalCodeValue.trim()) {
+    if (!selectedSku || !inputCode.trim()) {
       message.warning('请选择SKU并输入外部条码');
       return;
     }
     setLoading(true);
     try {
-      await api.post(`/sku/${selectedSku.sku_code}/external-codes`, { external_code: addExternalCodeValue.trim() });
+      await api.post(`/sku/${selectedSku.sku_code}/external-codes`, { external_code: inputCode.trim() });
       message.success('添加外部条码成功');
-      setAddExternalCodeValue('');
+      setInputCode('');
       fetchExternalCodes(selectedSku.sku_code);
     } catch (error) {
         message.error('添加外部条码失败');
@@ -133,11 +132,12 @@ const MobileExternalCodes = () => {
   });
 
   // 扫码
-  const openScanner = () => setScannerVisible(true);
-  const handleScanResult = (barcode) => {
-    if (!barcode) return;
-    setAddExternalCodeValue(barcode);
-    setScannerVisible(false);
+  const handleScan = () => {
+    if (!inputCode.trim()) {
+      message.warning('请输入外部条码');
+      return;
+    }
+    handleAddExternalCode();
   };
 
   // 初始化加载
@@ -198,18 +198,17 @@ const MobileExternalCodes = () => {
               <div>颜色: <Tag color="blue">{selectedSku.sku_color}</Tag> 尺码: <Tag color="green">{selectedSku.sku_size}</Tag></div>
             </div>
           </div>
-          <div>
-            <Input.Group compact>
-              <Input
-                style={{ width: '60%' }}
-                placeholder="输入/扫码外部条码"
-                value={addExternalCodeValue}
-                onChange={e => setAddExternalCodeValue(e.target.value)}
-                onPressEnter={handleAddExternalCode}
-              />
-              <Button icon={<ScanOutlined />} onClick={openScanner}>扫码</Button>
-              <Button type="primary" icon={<PlusOutlined />} onClick={handleAddExternalCode}>添加</Button>
-            </Input.Group>
+          <div style={{ marginBottom: 8 }}>
+            <Input.TextArea
+              placeholder="扫描外部条码或手动输入"
+              value={inputCode}
+              onChange={(e) => setInputCode(e.target.value)}
+              style={{ marginBottom: 8 }}
+              onPressEnter={handleScan}
+            />
+            <Button type="primary" onClick={handleScan}>
+              确认
+            </Button>
           </div>
         </Card>
       )}
@@ -229,16 +228,6 @@ const MobileExternalCodes = () => {
             />
         </Card>
       )}
-
-      {/* 扫码器Modal */}
-      <Modal
-        title="扫码外部条码"
-        open={scannerVisible}
-        onCancel={() => setScannerVisible(false)}
-        footer={null}
-      >
-        <BarcodeScannerComponent onScan={handleScanResult} onClose={() => setScannerVisible(false)} />
-      </Modal>
     </div>
   );
 };

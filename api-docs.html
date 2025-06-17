@@ -201,11 +201,11 @@
     <div class="container">
         <header>
             <h1>🏭 仓库管理系统</h1>
-            <p class="subtitle">API 接口文档 v1.0</p>
+            <p class="subtitle">API 接口文档 v1.1</p>
         </header>
 
         <div class="base-url">
-                         <strong>基础 URL:</strong> <code>http://192.168.11.252:8611/api</code><br>
+            <strong>基础 URL:</strong> <code>http://192.168.11.252:8611/api</code><br>
             <strong>认证方式:</strong> Bearer Token (在请求头中添加 Authorization: Bearer &lt;token&gt;)
         </div>
 
@@ -220,6 +220,40 @@
                 <a href="#outbound">📤 出库操作</a>
                 <a href="#upload">🖼️ 文件上传</a>
                 <a href="#external-codes">🔗 外部条码</a>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📝 通用字段说明</h2>
+            <div class="note">
+                <div class="note-title">🔍 审计与控制字段</div>
+                <p>以下字段适用于所有修改操作（POST/PUT）：</p>
+                <table class="param-table">
+                    <tr>
+                        <th>字段名</th>
+                        <th>类型</th>
+                        <th>必需</th>
+                        <th>说明</th>
+                    </tr>
+                    <tr>
+                        <td>operator_id</td>
+                        <td>string</td>
+                        <td class="required">是</td>
+                        <td>操作人ID，用于追踪谁进行了操作</td>
+                    </tr>
+                    <tr>
+                        <td>is_urgent</td>
+                        <td>boolean</td>
+                        <td class="optional">否</td>
+                        <td>是否紧急操作，默认false</td>
+                    </tr>
+                    <tr>
+                        <td>notes</td>
+                        <td>string</td>
+                        <td class="optional">否</td>
+                        <td>操作备注说明</td>
+                    </tr>
+                </table>
             </div>
         </div>
 
@@ -552,8 +586,31 @@
                         <tr><td>location_code</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
                         <tr><td>stock_quantity</td><td>number</td><td class="required">是</td><td>调整数量（正数增加，负数减少）</td></tr>
                         <tr><td>batch_number</td><td>string</td><td class="optional">否</td><td>批次号</td></tr>
-                        <tr><td>notes</td><td>string</td><td class="optional">否</td><td>备注</td></tr>
+                        <tr><td>operator_id</td><td>string</td><td class="required">是</td><td>操作人ID</td></tr>
+                        <tr><td>is_urgent</td><td>boolean</td><td class="optional">否</td><td>是否紧急操作，默认false</td></tr>
+                        <tr><td>notes</td><td>string</td><td class="optional">否</td><td>操作备注说明</td></tr>
                     </table>
+                </div>
+                <div class="response">
+                    <h4>响应示例:</h4>
+                    <div class="code-block">
+{
+  "success": true,
+  "data": {
+    "product_code": "PROD001",
+    "location_code": "A01-01-01",
+    "previous_quantity": 100,
+    "adjusted_quantity": 50,
+    "current_quantity": 150,
+    "operator_id": "OP001",
+    "operated_at": "2024-01-01T12:00:00.000Z",
+    "is_urgent": false,
+    "notes": "库存调整"
+  },
+  "error_code": null,
+  "error_message": null
+}
+                    </div>
                 </div>
             </div>
         </div>
@@ -572,27 +629,33 @@
                     <h4>请求参数:</h4>
                     <table class="param-table">
                         <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
-                        <tr><td>product_code / product_code</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
-                        <tr><td>location_code / location_code</td><td>string</td><td class="optional">否</td><td>库位编码，不指定则入库到无货位</td></tr>
+                        <tr><td>product_code</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
+                        <tr><td>location_code</td><td>string</td><td class="optional">否</td><td>库位编码，不指定则入库到无货位</td></tr>
                         <tr><td>stock_quantity</td><td>number</td><td class="required">是</td><td>入库数量</td></tr>
-                        <tr><td>batch_number / batch_number</td><td>string</td><td class="optional">否</td><td>批次号</td></tr>
-                        <tr><td>notes</td><td>string</td><td class="optional">否</td><td>备注</td></tr>
-                        <tr><td>sku_code / sku_code</td><td>string</td><td class="optional">否</td><td>SKU编码</td></tr>
+                        <tr><td>batch_number</td><td>string</td><td class="optional">否</td><td>批次号</td></tr>
+                        <tr><td>operator_id</td><td>string</td><td class="required">是</td><td>操作人ID</td></tr>
+                        <tr><td>is_urgent</td><td>boolean</td><td class="optional">否</td><td>是否紧急操作，默认false</td></tr>
+                        <tr><td>notes</td><td>string</td><td class="optional">否</td><td>操作备注说明</td></tr>
+                        <tr><td>sku_code</td><td>string</td><td class="optional">否</td><td>SKU编码</td></tr>
                     </table>
                 </div>
-                <div class="note">
-                    <div class="note-title">💡 提示</div>
-                    支持多种参数格式，系统会自动识别商品编码和SKU编码。如果编码包含"-"符号，会自动解析为SKU。
-                </div>
                 <div class="response">
-                    <h4>请求示例:</h4>
+                    <h4>响应示例:</h4>
                     <div class="code-block">
 {
-  "product_code": "PROD001-RED-L",
-  "location_code": "A01-01-01",
-  "stock_quantity": 50,
-  "batch_number": "BATCH001",
-  "notes": "正常入库"
+  "success": true,
+  "data": {
+    "product_code": "PROD001",
+    "location_code": "A01-01-01",
+    "stock_quantity": 50,
+    "batch_number": "BATCH001",
+    "operator_id": "OP001",
+    "operated_at": "2024-01-01T12:00:00.000Z",
+    "is_urgent": false,
+    "notes": "正常入库"
+  },
+  "error_code": null,
+  "error_message": null
 }
                     </div>
                 </div>
@@ -613,15 +676,33 @@
                     <h4>请求参数:</h4>
                     <table class="param-table">
                         <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
-                        <tr><td>product_code / product_code</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
-                        <tr><td>location_code / location_code</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
+                        <tr><td>product_code</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
+                        <tr><td>location_code</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
                         <tr><td>stock_quantity</td><td>number</td><td class="required">是</td><td>出库数量</td></tr>
-                        <tr><td>sku_code / sku_code</td><td>string</td><td class="optional">否</td><td>SKU编码</td></tr>
+                        <tr><td>operator_id</td><td>string</td><td class="required">是</td><td>操作人ID</td></tr>
+                        <tr><td>is_urgent</td><td>boolean</td><td class="optional">否</td><td>是否紧急操作，默认false</td></tr>
+                        <tr><td>notes</td><td>string</td><td class="optional">否</td><td>操作备注说明</td></tr>
+                        <tr><td>sku_code</td><td>string</td><td class="optional">否</td><td>SKU编码</td></tr>
                     </table>
                 </div>
-                <div class="note">
-                    <div class="note-title">⚠️ 注意</div>
-                    出库数量不能超过库存数量，系统会自动检查库存充足性。
+                <div class="response">
+                    <h4>响应示例:</h4>
+                    <div class="code-block">
+{
+  "success": true,
+  "data": {
+    "product_code": "PROD001",
+    "location_code": "A01-01-01",
+    "stock_quantity": -50,
+    "operator_id": "OP001",
+    "operated_at": "2024-01-01T12:00:00.000Z",
+    "is_urgent": false,
+    "notes": "正常出库"
+  },
+  "error_code": null,
+  "error_message": null
+}
+                    </div>
                 </div>
             </div>
         </div>

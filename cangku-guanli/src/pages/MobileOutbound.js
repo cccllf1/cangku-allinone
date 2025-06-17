@@ -16,8 +16,6 @@ const MobileOutbound = () => {
   const [inputCode, setInputCode] = useState('');
   const [tableData, setTableData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [scannerVisible, setScannerVisible] = useState(false);
-  const [scanning, setScanning] = useState(false);
   const [productSuggestionVisible, setProductSuggestionVisible] = useState(false);
   const [suggestedProducts, setSuggestedProducts] = useState([]);
   const [selectedStyle, setSelectedStyle] = useState(null);
@@ -172,16 +170,11 @@ const MobileOutbound = () => {
     });
   };
 
-  // 打开扫码器
-  const openScanner = () => {
-    setScannerVisible(true);
-  };
-  
   // 处理条码扫描
   const handleScan = async () => {
     if (!inputCode || inputCode.length < 3) return;
     try {
-      setScanning(true);
+      setLoading(true);
       // 1. 先查SKU码
       if (inputCode.includes('-')) {
         // 新增：如果是完整SKU码，且能唯一匹配SKU，直接添加
@@ -193,13 +186,13 @@ const MobileOutbound = () => {
           if (matchingSku) {
             await addProductWithSku(product, matchingSku);
             setInputCode('');
-            setScanning(false);
+            setLoading(false);
             return;
           }
         }
         // 否则走原有逻辑
         await handleSkuBarcode(inputCode);
-        setScanning(false);
+        setLoading(false);
         return;
       }
       // 2. 查商品码
@@ -208,7 +201,7 @@ const MobileOutbound = () => {
         if (res.data) {
           selectProduct(res.data);
           setInputCode('');
-          setScanning(false);
+          setLoading(false);
           return;
         }
       } catch (err) {
@@ -219,7 +212,7 @@ const MobileOutbound = () => {
       if (res.data) {
         selectProduct(res.data);
         setInputCode('');
-        setScanning(false);
+        setLoading(false);
         return;
       }
           } catch (err2) {
@@ -235,7 +228,7 @@ const MobileOutbound = () => {
                   skus: [skuData.sku]
                 }, skuData.sku);
                 setInputCode('');
-                setScanning(false);
+                setLoading(false);
                 return;
           }
             } catch (e) {
@@ -252,7 +245,7 @@ const MobileOutbound = () => {
       console.error('扫码错误:', error);
       message.error('查询失败，请重试');
     } finally {
-      setScanning(false);
+      setLoading(false);
       setInputCode('');
     }
   };
@@ -1041,14 +1034,18 @@ const MobileOutbound = () => {
   };
 
   return (
-    <div style={{ padding: theme.mobilePadding, backgroundColor: theme.backgroundWhite }}>
+    <div style={{ padding: '8px' }}>
       <MobileNavBar currentPage="outbound" />
-      
+      <div style={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        gap: '8px' 
+      }}>
       {/* 扫码区域 */}
       <div style={{ ...getStyle('compactLayout') }}>
         <Input.TextArea
           id="scanInput"
-          placeholder="扫描商品条码或手动输入 (支持多行粘贴)"
+          placeholder="商品条码或手动输入 (支持多行粘贴)"
           value={inputCode}
           onChange={(e) => setInputCode(e.target.value)}
           onPressEnter={(e) => {
@@ -1068,24 +1065,6 @@ const MobileOutbound = () => {
           }}
           autoSize={{ minRows: 2, maxRows: 4 }}
         />
-        <div style={{ marginTop: 0, marginBottom: 4, display: 'flex', justifyContent: 'flex-end', gap: '2px' }}>
-          <Button 
-            icon={<ScanOutlined />} 
-            size="small"
-            style={{ width: 80, height: 30, fontSize: 12, marginRight: 4 }}
-            onClick={openScanner}
-          >
-            扫码
-          </Button>
-          <Button 
-            type="primary" 
-            size="small"
-            style={{ width: 80, height: 30, fontSize: 12 }}
-            onClick={handleScan}
-          >
-            确认(回车)
-          </Button>
-        </div>
       </div>
       
       {/* 选中的商品列表 */}
@@ -1195,46 +1174,6 @@ const MobileOutbound = () => {
           </List.Item>
         )}
       />
-      
-      {/* 扫码组件 */}
-      <Modal
-        title="扫描条码"
-        open={scannerVisible}
-        onCancel={() => setScannerVisible(false)}
-        footer={[
-          <Button key="back" onClick={() => setScannerVisible(false)}>
-            关闭
-          </Button>
-        ]}
-      >
-        <BarcodeScannerComponent onScan={handleScan} />
-      </Modal>
-      
-      {/* SKU选择弹窗 */}
-      <Modal
-        title="选择商品款式"
-        open={skuSelectVisible}
-        onOk={handleSkuSelect}
-        onCancel={() => setSkuSelectVisible(false)}
-        okButtonProps={{ disabled: !selectedSku }}
-      >
-        <div style={{ marginBottom: 16 }}>
-          <p>商品: {currentProduct?.name || ''}</p>
-          <p>请选择一个款式:</p>
-          <Select
-            style={{ width: '100%' }}
-            placeholder="选择款式"
-            value={selectedSku}
-            onChange={value => setSelectedSku(value)}
-          >
-            {skuOptions.map(option => (
-              <Option key={option.value} value={option.value}>
-                {option.label}
-              </Option>
-            ))}
-          </Select>
-        </div>
-      </Modal>
       
       {/* 商品建议弹窗 */}
       <Modal
@@ -1348,6 +1287,7 @@ const MobileOutbound = () => {
       <Modal open={!!previewImage} footer={null} onCancel={() => setPreviewImage(null)}>
         <img src={previewImage} alt="预览" style={{ width: '100%' }} />
       </Modal>
+      </div>
     </div>
   );
 };

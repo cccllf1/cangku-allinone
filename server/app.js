@@ -26,6 +26,10 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// 国际化 & 统一响应包装
+const i18nMiddleware = require('./src/middleware/i18n');
+app.use(i18nMiddleware);
+
 // 创建上传文件夹
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)){

@@ -77,22 +77,25 @@ if (!loc) throw new Error('缺少 location_code 字段');
 | 批次号       | `batch_number`       | `batchNumber`    | 商品批次编号   |
 | 外部条码     | `external_code`      | `externalCode`   | 单个外部条码   |
 | 外部条码列表 | `external_codes`     | `externalCodes`  | 外部条码数组   |
-| SKU图片      | image_path      | image      | SKU图片路径，每个SKU独立 |
+| SKU图片      | `image_path`         | `image`          | SKU图片路径    |
 | 是否有SKU    | `has_sku`            | `hasSku`         | 是否包含SKU    |
 | 用户ID       | `user_id`            | `userId`         | 用户唯一标识   |
-| 用户名       | `user_name`           | `userName`       | 用户登录名     |
+| 用户名       | `user_name`          | `userName`       | 用户登录名     |
 | 角色         | `role`               | `userRole`       | 用户角色       |
 | 操作员ID     | `operator_id`        | `operatorId`, `op_id` | 记录操作员身份，所有涉及库存调整、转移、入库、出库等操作必须传递 |
 | 库存数量     | `stock_quantity`     | `quantity`, `stockQty` | 整数单位 |
 | 可用库存     | `available_quantity` | `avlQty`         | 可销售数量     |
 | 创建时间     | `created_at`         | `createdAt`, `createTime` | ISO8601格式 |
 | 更新时间     | `updated_at`         | `updatedAt`, `updateTime` | ISO8601格式 |
+| 操作时间     | `operated_at`        | `operatedAt`, `operateTime` | ISO8601格式 |
 | 是否删除     | `is_deleted`         | `deletedFlag`    | 布尔值         |
+| 是否紧急     | `is_urgent`          | `isUrgent`, `urgent` | 布尔值，标记紧急操作 |
+| 操作备注     | `notes`              | `note`, `remark` | 操作说明文本   |
 | 源库位ID     | `from_location_id`   | `fromLocationId` | 转移出库位唯一标识 |
 | 源库位编码   | `from_location_code` | `fromLocationCode` | 转移出库位编码 |
 | 目标库位ID   | `to_location_id`     | `toLocationId`   | 转移入库位唯一标识 |
 | 目标库位编码 | `to_location_code`   | `toLocationCode` | 转移入库位编码 |
-| 商品总库存   | `total_quantity`    | `total_qty`, `qty`  | 商品下所有SKU的库存合计 |
+| 商品总库存   | `total_quantity`     | `total_qty`, `qty`  | 商品下所有SKU的库存合计 |
 
 ---
 
@@ -120,7 +123,9 @@ if (!loc) throw new Error('缺少 location_code 字段');
   "sku_code": "string",        // SKU编码（可选）
   "stock_quantity": "number",  // 数量（必需）
   "batch_number": "string",    // 批次号（可选）
-  "notes": "string"            // 备注（可选）
+  "operator_id": "string",     // 操作人ID（必需）
+  "is_urgent": "boolean",      // 是否紧急（可选，默认false）
+  "notes": "string"           // 备注说明（可选）
 }
 ```
 
@@ -132,7 +137,10 @@ if (!loc) throw new Error('缺少 location_code 字段');
   "location_id": "string",     // 库位ID（可选与location_code二选一）
   "location_code": "string",   // 库位编码（可选，与location_id二选一）
   "sku_code": "string",        // SKU编码（可选）
-  "stock_quantity": "number"   // 数量（必需）
+  "stock_quantity": "number",  // 数量（必需）
+  "operator_id": "string",     // 操作人ID（必需）
+  "is_urgent": "boolean",      // 是否紧急（可选，默认false）
+  "notes": "string"           // 备注说明（可选）
 }
 ```
 
@@ -148,9 +156,11 @@ if (!loc) throw new Error('缺少 location_code 字段');
   "from_location_code": "string", // 源库位编码（可选，与from_location_id二选一）
   "to_location_id": "string",     // 目标库位ID（可选，与to_location_code二选一）
   "to_location_code": "string",   // 目标库位编码（可选，与to_location_id二选一）
-  "stock_quantity": 8,             // 转移数量（必填，整数）
+  "stock_quantity": 8,            // 转移数量（必填，整数）
   "batch_number": "string",       // 批次号（可选）
-  "notes": "string"               // 备注（可选）
+  "operator_id": "string",        // 操作人ID（必需）
+  "is_urgent": "boolean",         // 是否紧急（可选，默认false）
+  "notes": "string"              // 备注说明（可选）
 }
 ```
 
@@ -203,7 +213,9 @@ if (!loc) throw new Error('缺少 location_code 字段');
   "location_code": "string",   // 库位编码（必需）
   "stock_quantity": "number",  // 调整数量，正数增加，负数减少（必需）
   "batch_number": "string",    // 批次号（可选）
-  "notes": "string"            // 备注（可选）
+  "operator_id": "string",     // 操作人ID（必需）
+  "is_urgent": "boolean",      // 是否紧急（可选，默认false）
+  "notes": "string"            // 备注说明（可选）
 }
 ```
 
@@ -685,14 +697,22 @@ fetch('/api/products/code/129092', {
     console.log({
       product_code: data.product_code,
       product_name: data.product_name,
-      skus: data.skus.map(sku => ({
-        sku_code: sku.sku_code,
-        sku_color: sku.sku_color,
-        sku_size: sku.sku_size,
-        stock_quantity: sku.stock_quantity,
-        image_path: sku.image_path,
-        external_codes: sku.external_codes
-      }))
+      colors: data.colors.map(color => ({
+        color: color.color,
+        image_path: color.image_path,
+        sizes: color.sizes.map(size => ({
+          sku_size: size.sku_size,
+          sku_code: size.sku_code,
+          total_quantity: size.total_quantity,
+          locations: size.locations.map(location => ({
+            location_code: location.location_code,
+            stock_quantity: location.stock_quantity
+          }))
+        }))
+      })),
+      matched_sku: data.matched_sku,
+      created_at: data.created_at,
+      updated_at: data.updated_at
     });
   });
 
@@ -741,18 +761,29 @@ fetch('/api/products/12345')
   "data": {
     "product_code": "129092",
     "product_name": "测试商品",
-    "skus": [
+    "colors": [
       {
-        "sku_code": "129092-黑色-XL",
-        "sku_color": "黑色",
-        "sku_size": "XL",
-        "stock_quantity": 50,
-        "image_path": "/uploads/skus/129092-black-xl.jpg",
-        "external_codes": ["EXT001", "EXT002"],
-        "is_active": true
+        "color": "黄色",
+        "image_path": "/uploads/product-xxx.jpeg",
+        "sizes": [
+          {
+            "sku_size": "M",
+            "sku_code": "129092-黄色-M",
+            "total_quantity": 8,
+            "locations": [
+              { "location_code": "西8排1架6层4位", "stock_quantity": 8 }
+            ]
+          }
+        ]
       }
     ],
-    "total_quantity": 100,
+    "matched_sku": {
+      "sku_code": "129092-黄色-M",
+      "sku_color": "黄色",
+      "sku_size": "M",
+      "stock_quantity": 8,
+      "image_path": "/uploads/product-xxx.jpeg"
+    },
     "created_at": "2024-01-01T12:00:00.000Z",
     "updated_at": "2024-01-01T12:00:00.000Z"
   },
@@ -886,15 +917,12 @@ fetch('/api/inventory/adjust', {
    - [ ] 检查所有字段命名规范
    - [ ] 验证错误响应格式
 
-> 📝 **注意事项**：
-> 1. 库存调整必须是原子操作
-> 2. 调整前必须检查库存是否充足
-> 3. 所有调整操作必须记录操作人
-> 4. 批次号可选但建议填写
+📝 **注意事项**：
 
----
-
-> 📢 **重要提醒**：请所有开发者（包括AI助手）在编写API相关代码时，必须参考此命名规范文档。任何新的API接口都必须严格遵循snake_case命名规范。
+1. 库存调整必须是原子操作
+2. 调整前必须检查库存是否充足
+3. 所有调整操作必须记录操作人
+4. 批次号可选但建议填写
 
 ---
 
@@ -972,3 +1000,172 @@ curl -X POST http://192.168.11.252:8610/api/inventory/transfer \
   - 商品总库存：`total_quantity`
   - 颜色下总库存：`total_quantity`
 - 说明：保持与 `stock_quantity`、`available_quantity` 等命名风格一致，便于全链路一致性和维护。
+
+### 商品管理接口标准
+
+#### 1. 获取商品列表
+```
+GET /api/products
+
+响应格式：
+{
+  "success": true,
+  "data": [
+    {
+      "product_id": "string",
+      "product_code": "string",
+      "product_name": "string",
+      "unit": "string",
+      "image_path": "string",
+      "has_sku": boolean,
+      "created_at": "2024-01-01T12:00:00.000Z",
+      "updated_at": "2024-01-01T12:00:00.000Z"
+    }
+  ],
+  "error_code": null,
+  "error_message": null
+}
+```
+
+#### 2. 通过编码查询商品
+```
+GET /api/products/code/:product_code
+
+响应格式：
+{
+  "success": true,
+  "data": {
+    "product_id": "string",
+    "product_code": "string",
+    "product_name": "string",
+    "unit": "string",
+    "image_path": "string",
+    "has_sku": boolean,
+    "colors": [
+      {
+        "color": "string",
+        "image_path": "string",
+        "sizes": [
+          {
+            "sku_size": "string",
+            "sku_code": "string",
+            "total_quantity": number,
+            "locations": [
+              { "location_code": "string", "stock_quantity": number }
+            ]
+          }
+        ]
+      }
+    ],
+    "matched_sku": {
+      "sku_code": "string",
+      "sku_color": "string",
+      "sku_size": "string",
+      "stock_quantity": number,
+      "image_path": "string"
+    },
+    "created_at": "2024-01-01T12:00:00.000Z",
+    "updated_at": "2024-01-01T12:00:00.000Z"
+  },
+  "error_code": null,
+  "error_message": null
+}
+```
+
+#### 3. 通过ID查询商品
+```
+GET /api/products/:product_id
+
+响应格式：同上
+```
+
+#### 4. 创建商品
+```
+POST /api/products
+
+请求参数：
+{
+  "product_code": "string",     // 必需：商品编码
+  "product_name": "string",     // 必需：商品名称
+  "unit": "string",            // 可选：计量单位，默认"件"
+  "image_path": "string",      // 可选：商品图片路径
+  "has_sku": boolean,          // 可选：是否有SKU
+  "skus": [                    // 可选：SKU列表
+    {
+      "sku_code": "string",
+      "sku_color": "string",
+      "sku_size": "string",
+      "image_path": "string",
+      "external_codes": ["string"]
+    }
+  ],
+  "operator_id": "string",     // 必需：操作人ID
+  "is_urgent": boolean,        // 可选：是否紧急
+  "notes": "string"           // 可选：备注说明
+}
+
+响应格式：
+{
+  "success": true,
+  "data": {
+    // 同请求参数
+    "product_id": "string",    // 系统生成的商品ID
+    "created_at": "2024-01-01T12:00:00.000Z",
+    "operated_at": "2024-01-01T12:00:00.000Z"
+  },
+  "error_code": null,
+  "error_message": null
+}
+```
+
+#### 5. 修改商品
+```
+PUT /api/products/:product_id
+
+请求参数：同创建商品
+响应格式：同创建商品
+```
+
+#### 6. 删除商品
+```
+DELETE /api/products/:product_id
+
+请求参数：
+{
+  "operator_id": "string",     // 必需：操作人ID
+  "is_urgent": boolean,        // 可选：是否紧急
+  "notes": "string"           // 可选：删除原因说明
+}
+
+响应格式：
+{
+  "success": true,
+  "data": {
+    "product_id": "string",
+    "operated_at": "2024-01-01T12:00:00.000Z",
+    "operator_id": "string",
+    "is_urgent": boolean,
+    "notes": "string"
+  },
+  "error_code": null,
+  "error_message": null
+}
+```
+
+#### 错误码说明
+| 错误码 | 说明 |
+|--------|------|
+| PRODUCT_NOT_FOUND | 商品不存在 |
+| PRODUCT_CODE_EXISTS | 商品编码已存在 |
+| INVALID_PRODUCT_CODE | 商品编码格式无效 |
+| INVALID_SKU_CODE | SKU编码格式无效 |
+| OPERATION_NOT_ALLOWED | 操作不允许（如删除已有库存的商品） |
+
+#### 注意事项
+1. 所有修改操作必须传递 `operator_id`
+2. 所有时间字段使用 ISO8601 格式
+3. 所有布尔字段使用 `is_` 或 `has_` 前缀
+4. 所有编码字段使用 `_code` 后缀
+5. SKU编码格式：`{product_code}-{color}-{size}`
+6. 删除商品前需要检查是否存在库存
+7. 图片路径必须以 `/uploads/` 开头

@@ -1,9 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Button, Input, message, List, Card, Space, Modal, Form, Switch, Select, Upload, Tabs, Badge, Tag, Popconfirm, InputNumber, Image, Collapse, Dropdown, Menu } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, PictureOutlined, SaveOutlined, SearchOutlined, LinkOutlined, ScanOutlined, CloseOutlined, ArrowRightOutlined, InboxOutlined, ExportOutlined, RedoOutlined, WarningOutlined, SettingOutlined, DownOutlined, SwapOutlined, ExclamationCircleFilled } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, PictureOutlined, SaveOutlined, SearchOutlined, LinkOutlined, CloseOutlined, ArrowRightOutlined, InboxOutlined, ExportOutlined, RedoOutlined, WarningOutlined, SettingOutlined, DownOutlined, SwapOutlined, ExclamationCircleFilled } from '@ant-design/icons';
 import api from '../api/auth';
 import { useNavigate } from 'react-router-dom';
-import BarcodeScannerComponent from '../components/BarcodeScannerComponent';
 import MobileNavBar from '../components/MobileNavBar';
 import { getFullImageUrl } from '../utils/imageUtils';
 
@@ -70,7 +69,6 @@ const MobileProductManage = () => {
   const [form] = Form.useForm();
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [skus, setSkus] = useState([]);
-  const [scannerVisible, setScannerVisible] = useState(false);
   const [skuDetailVisible, setSkuDetailVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [colorOptions, setColorOptions] = useState(DEFAULT_COLORS);

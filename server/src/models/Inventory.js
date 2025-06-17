@@ -30,12 +30,11 @@ const inventorySchema = new mongoose.Schema({
     }
   ]
 }, { 
-  timestamps: true,
-  // 添加索引以提高查询性能
-  indexes: [
-    { product_id: 1 },
-    { product_code: 1 }
-  ]
+  timestamps: true
 });
+
+// 添加索引以提高查询性能
+inventorySchema.index({ product_id: 1 });
+inventorySchema.index({ product_code: 1 });
 
 module.exports = mongoose.model('Inventory', inventorySchema); 
