@@ -165,6 +165,32 @@ router.post('/', auth, async (req, res) => {
     // 保存更新
     await inventory.save();
     
+    // === 同步更新Product模型中的SKU库存数据 ===
+    console.log('=== 开始同步更新Product模型 ===');
+    
+    // 计算该SKU在所有库位的总数量
+    let productSkuTotalQuantity = 0;
+    inventory.locations.forEach(loc => {
+      if (loc.skus) {
+        const sku = loc.skus.find(s => s.sku_code === sku_code);
+        if (sku) {
+          productSkuTotalQuantity += Number(sku.stock_quantity) || 0;
+        }
+      }
+    });
+    
+    // 更新Product模型中对应SKU的stock_quantity
+    if (product.skus && Array.isArray(product.skus)) {
+      const productSkuIndex = product.skus.findIndex(s => s.sku_code === sku_code);
+      if (productSkuIndex >= 0) {
+        product.skus[productSkuIndex].stock_quantity = productSkuTotalQuantity;
+        console.log(`更新Product模型中SKU库存: ${sku_code} -> ${productSkuTotalQuantity}`);
+      }
+      
+      await product.save();
+      console.log('Product模型同步更新完成');
+    }
+    
     // 计算SKU在当前库位的数量和总数量
     let sku_location_quantity = 0;
     let sku_total_quantity = 0;

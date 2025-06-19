@@ -174,11 +174,13 @@ const MobileInventory = () => {
       message.warning('数量必须大于0');
       return;
     }
+    
     try {
       setLoading(true);
       let endpoint = '/outbound/';
       if (warehouseActionType === 'inbound') endpoint = '/inbound/';
       else if (warehouseActionType === 'adjust') endpoint = '/inventory/adjust';
+      
       let payload = {};
       if (warehouseActionType === 'inbound') {
         payload = {
@@ -205,20 +207,75 @@ const MobileInventory = () => {
           notes: '移动端库存调整'
         };
       }
+      
+      console.log('=== 发起仓库操作 ===');
+      console.log('操作类型:', warehouseActionType);
+      console.log('请求数据:', JSON.stringify(payload, null, 2));
+      
       const response = await api.post(endpoint, payload);
+      
+      console.log('=== 仓库操作成功 ===');
+      console.log('响应数据:', JSON.stringify(response.data, null, 2));
+      
       message.success(`${warehouseActionType === 'inbound' ? '入库' : warehouseActionType === 'outbound' ? '出库' : '盘点'}成功`);
       setWarehouseActionVisible(false);
 
-      // API已经返回了最新的库存数据，直接使用而不需要刷新
+      // 显示操作结果信息
       if (response.data && response.data.inventory) {
-        const { sku_location_quantity, sku_total_quantity } = response.data.inventory;
-        console.log('操作完成，最新库存:', { sku_location_quantity, sku_total_quantity });
+        const { sku_location_quantity, sku_total_quantity, inbound_quantity, outbound_quantity, target_quantity } = response.data.inventory;
+        const operationQuantity = inbound_quantity || outbound_quantity || target_quantity || 0;
+        console.log(`操作完成 - 操作数量: ${operationQuantity}, 库位库存: ${sku_location_quantity}, SKU总库存: ${sku_total_quantity}`);
       }
 
-      // 只刷新产品列表数据即可
-      loadInventory();
+      // 先刷新主列表数据
+      console.log('=== 开始刷新主列表数据 ===');
+      await loadInventory();
+      
+      // 如果有打开的SKU详情弹窗，需要更新其数据
+      if (selectedProduct && selectedProduct.product_code) {
+        console.log('=== 开始刷新SKU详情弹窗数据 ===');
+        console.log('当前选中产品:', selectedProduct.product_code);
+        
+        try {
+          // 重新获取商品详情，获取最新的SKU和库存信息
+          const resDetail = await api.get('products', { 
+            params: { search: selectedProduct.product_code, page_size: 1 } 
+          });
+          const updatedProduct = (resDetail.data.data?.products || [])[0];
+          
+          if (updatedProduct) {
+            console.log('获取到更新后的商品数据:', {
+              product_code: updatedProduct.product_code,
+              product_total_quantity: updatedProduct.product_total_quantity,
+              colors_count: updatedProduct.colors?.length || 0
+            });
+            
+            // 直接使用最新的商品数据更新SKU详情弹窗
+            setSelectedProduct(updatedProduct);
+            console.log('=== SKU详情弹窗数据刷新完成 ===');
+          } else {
+            console.log('未找到更新后的商品数据');
+          }
+        } catch (err) {
+          console.error('刷新SKU详情失败:', err);
+          message.warning('操作成功，但刷新详情失败，请手动关闭详情弹窗重新打开');
+        }
+      }
+      
     } catch (error) {
-      message.error('操作失败: ' + (error.response?.data?.message || error.message));
+      console.error('=== 仓库操作失败 ===');
+      console.error('错误详情:', error);
+      
+      let errorMessage = '操作失败';
+      if (error.response?.data?.error_message) {
+        errorMessage = error.response.data.error_message;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -230,8 +287,10 @@ const MobileInventory = () => {
       message.error('缺少必要参数，无法清库存');
       return;
     }
+    
     try {
       setLoading(true);
+      
       const requestData = {
         sku_code: item.sku_code,
         location_code,
@@ -239,11 +298,66 @@ const MobileInventory = () => {
         operator_id: currentUser.user_id,
         notes: '清库存'
       };
-      await api.post('/inventory/adjust', requestData);
+      
+      console.log('=== 发起清库存操作 ===');
+      console.log('请求数据:', JSON.stringify(requestData, null, 2));
+      
+      const response = await api.post('/inventory/adjust', requestData);
+      
+      console.log('=== 清库存操作成功 ===');
+      console.log('响应数据:', JSON.stringify(response.data, null, 2));
+      
       message.success('清库存成功');
-      loadInventory();
+      
+      // 先刷新主列表数据
+      console.log('=== 开始刷新主列表数据 ===');
+      await loadInventory();
+      
+      // 如果有打开的SKU详情弹窗，需要更新其数据
+      if (selectedProduct && selectedProduct.product_code) {
+        console.log('=== 开始刷新SKU详情弹窗数据 ===');
+        console.log('当前选中产品:', selectedProduct.product_code);
+        
+        try {
+          // 重新获取商品详情，获取最新的SKU和库存信息
+          const resDetail = await api.get('products', { 
+            params: { search: selectedProduct.product_code, page_size: 1 } 
+          });
+          const updatedProduct = (resDetail.data.data?.products || [])[0];
+          
+          if (updatedProduct) {
+            console.log('获取到更新后的商品数据:', {
+              product_code: updatedProduct.product_code,
+              product_total_quantity: updatedProduct.product_total_quantity,
+              colors_count: updatedProduct.colors?.length || 0
+            });
+            
+            // 直接使用最新的商品数据更新SKU详情弹窗
+            setSelectedProduct(updatedProduct);
+            console.log('=== 清库存后SKU详情弹窗数据刷新完成 ===');
+          } else {
+            console.log('未找到更新后的商品数据');
+          }
+        } catch (err) {
+          console.error('刷新SKU详情失败:', err);
+          message.warning('清库存成功，但刷新详情失败，请手动关闭详情弹窗重新打开');
+        }
+      }
+      
     } catch (error) {
-      message.error('清库存失败: ' + (error.response?.data?.message || error.message));
+      console.error('=== 清库存操作失败 ===');
+      console.error('错误详情:', error);
+      
+      let errorMessage = '清库存失败';
+      if (error.response?.data?.error_message) {
+        errorMessage = error.response.data.error_message;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }

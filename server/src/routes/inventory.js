@@ -203,8 +203,19 @@ router.post('/adjust', auth, async (req, res) => {
       });
     }
 
-    // 从SKU编码解析商品编码
+    // 从SKU编码解析商品编码和颜色尺寸信息
     const product_code = sku_code.includes('-') ? sku_code.split('-')[0] : sku_code;
+    
+    // 解析SKU编码获取颜色和尺寸
+    let sku_color = '默认颜色';
+    let sku_size = '默认尺寸';
+    if (sku_code.includes('-')) {
+      const parts = sku_code.split('-');
+      if (parts.length >= 3) {
+        sku_color = parts[1];
+        sku_size = parts[2];
+      }
+    }
     
     // 查找或创建 Inventory 文档
     let invQuery = { product_code };
@@ -234,9 +245,15 @@ router.post('/adjust', auth, async (req, res) => {
     if (!sku) {
       sku = {
         sku_code,
+        sku_color,
+        sku_size,
         stock_quantity: 0
       };
       loc.skus.push(sku);
+    } else {
+      // 更新现有SKU的颜色和尺寸信息（确保数据一致性）
+      sku.sku_color = sku_color;
+      sku.sku_size = sku_size;
     }
 
     // 盘点直接覆盖库存为目标数量
@@ -269,6 +286,33 @@ router.post('/adjust', auth, async (req, res) => {
 
     // 保存更改
     await inventory.save();
+
+    // === 同步更新Product模型中的SKU库存数据 ===
+    console.log('=== 开始同步更新Product模型 ===');
+    
+    // 查找对应的Product记录
+    const product = await Product.findOne({ product_code });
+    if (product && product.skus && Array.isArray(product.skus)) {
+      // 计算该SKU在所有库位的总数量
+      let productSkuTotalQuantity = 0;
+      inventory.locations.forEach(loc => {
+        if (loc.skus) {
+          const skuInLocation = loc.skus.find(s => s.sku_code === sku_code);
+          if (skuInLocation) {
+            productSkuTotalQuantity += Number(skuInLocation.stock_quantity) || 0;
+          }
+        }
+      });
+      
+      // 更新Product模型中对应SKU的stock_quantity
+      const productSkuIndex = product.skus.findIndex(s => s.sku_code === sku_code);
+      if (productSkuIndex >= 0) {
+        product.skus[productSkuIndex].stock_quantity = productSkuTotalQuantity;
+        console.log(`更新Product模型中SKU库存: ${sku_code} -> ${productSkuTotalQuantity}`);
+        await product.save();
+        console.log('Product模型同步更新完成');
+      }
+    }
 
     // 计算SKU库存统计
     let sku_location_quantity = 0;

@@ -249,6 +249,7 @@
                 <a href="#inventory">📊 库存管理</a>
                 <a href="#inbound">📥 入库操作</a>
                 <a href="#outbound">📤 出库操作</a>
+                <a href="#inventory-operations">🔧 库存操作</a>
                 <a href="#external-codes">🔗 外部条码</a>
                 <a href="#upload">🖼️ 文件上传</a>
             </div>
@@ -1383,6 +1384,12 @@ Authorization: Bearer your_jwt_token
                 </div>
             </div>
 
+        </div>
+
+        <!-- 库存操作 -->
+        <div id="inventory-operations" class="section">
+            <h2>🔧 库存操作</h2>
+
             <div class="endpoint">
                 <div class="endpoint-header">
                     <span class="method post">POST</span>
@@ -1469,6 +1476,102 @@ Authorization: Bearer your_jwt_token
                         <tr><td>notes</td><td>string</td><td>盘点备注信息</td></tr>
                         <tr><td>batch_number</td><td>string</td><td>批次号</td></tr>
                     </table>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method post">POST</span>
+                    <span class="endpoint-url">/inventory/clear</span>
+                </div>
+                <div class="endpoint-description">清空库存（将指定SKU在指定库位的库存清零）</div>
+                <div class="params">
+                    <h4>请求参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>sku_code</td><td>string</td><td class="required">是</td><td>SKU编码（系统自动解析商品信息）</td></tr>
+                        <tr><td>location_code</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
+                        <tr><td>operator_id</td><td>string</td><td class="required">是</td><td>操作人ID</td></tr>
+                        <tr><td>batch_number</td><td>string</td><td class="optional">否</td><td>批次号</td></tr>
+                        <tr><td>notes</td><td>string</td><td class="optional">否</td><td>清库存备注</td></tr>
+                        <tr><td>is_urgent</td><td>boolean</td><td class="optional">否</td><td>是否紧急清库存</td></tr>
+                    </table>
+                </div>
+                
+                <div class="note">
+                    <div class="note-title">🗑️ 清库存逻辑说明</div>
+                    <p>清库存是<strong>将指定库位的指定SKU库存直接清零</strong>：</p>
+                    <ul style="margin-top: 0.5rem; padding-left: 1.5rem;">
+                        <li>不管当前库存是多少，都会直接设置为0</li>
+                        <li>如果库位或SKU不存在，操作会失败</li>
+                        <li>清库存操作会记录到库存调整历史中</li>
+                        <li>常用于商品下架、过期处理、损坏处理等场景</li>
+                    </ul>
+                </div>
+                
+                <div class="params">
+                    <h4>📤 请求示例:</h4>
+                    <pre><code>POST /api/inventory/clear
+Content-Type: application/json
+Authorization: Bearer your_jwt_token
+
+{
+  "sku_code": "SHIRT-001-红-L",
+  "location_code": "A01-01-01",
+  "operator_id": "user123",
+  "notes": "商品下架，清空库存",
+  "is_urgent": false
+}</code></pre>
+                </div>
+                
+                <div class="params">
+                    <h4>📥 成功响应 (200 OK):</h4>
+                    <pre><code>{
+  "success": true,
+  "data": {
+    "location_code": "A01-01-01",
+    "product_code": "SHIRT-001", 
+    "sku_code": "SHIRT-001-红-L",
+    "previous_quantity": 95,
+    "cleared_quantity": 95,
+    "current_quantity": 0,
+    "sku_location_quantity": 0,
+    "sku_total_quantity": 285,
+    "operator_id": "user123",
+    "cleared_at": "2024-12-01T10:30:00Z",
+    "notes": "商品下架，清空库存",
+    "batch_number": "BATCH20241201"
+  }
+}</code></pre>
+                </div>
+                
+                <div class="params">
+                    <h4>响应字段说明:</h4>
+                    <table class="param-table">
+                        <tr><th>字段名</th><th>类型</th><th>说明</th></tr>
+                        <tr><td>location_code</td><td>string</td><td>库位编码</td></tr>
+                        <tr><td>product_code</td><td>string</td><td>商品编码（从SKU自动解析）</td></tr>
+                        <tr><td>sku_code</td><td>string</td><td>SKU编码</td></tr>
+                        <tr><td>previous_quantity</td><td>number</td><td>清库存前的数量</td></tr>
+                        <tr><td>cleared_quantity</td><td>number</td><td>清除的数量</td></tr>
+                        <tr><td>current_quantity</td><td>number</td><td>清库存后的数量（固定为0）</td></tr>
+                        <tr><td>sku_location_quantity</td><td>number</td><td>该SKU在当前库位的数量（固定为0）</td></tr>
+                        <tr><td>sku_total_quantity</td><td>number</td><td>该SKU在所有库位的总数量</td></tr>
+                        <tr><td>operator_id</td><td>string</td><td>操作人ID</td></tr>
+                        <tr><td>cleared_at</td><td>string</td><td>清库存时间（ISO格式）</td></tr>
+                        <tr><td>notes</td><td>string</td><td>清库存备注信息</td></tr>
+                        <tr><td>batch_number</td><td>string</td><td>批次号</td></tr>
+                    </table>
+                </div>
+                
+                <div class="params">
+                    <h4>📥 SKU不存在响应 (404 Not Found):</h4>
+                    <pre><code>{
+  "success": false,
+  "data": null,
+  "error_code": "SKU_NOT_FOUND",
+  "error_message": "指定库位中没有找到该SKU"
+}</code></pre>
                 </div>
             </div>
 
