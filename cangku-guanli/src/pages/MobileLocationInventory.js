@@ -416,26 +416,31 @@ const MobileLocationInventory = () => {
   const fetchLocations = async () => {
     setLoading(true);
     try {
-                const response = await api.get('/inventory/location');
+      const response = await api.get('/inventory/location');
       if (response.data && response.data.success) {
-        // 适配新接口结构
-        const locations = (response.data.data || []).map(loc => {
-          const items = loc.items || [];
-          // SKU数
-          const skuCount = items.length;
-          // 商品种数（按 product_code 去重）
-          const productSet = new Set(items.map(it => it.product_code));
-          const productCount = productSet.size;
-          // 合计件数
-          const totalQuantity = items.reduce((sum, it) => sum + (it.stock_quantity || 0), 0);
-          return {
-            location_code: loc.location_code,
+        // 兼容后端返回的扁平items数组
+        let locations = [];
+        if (Array.isArray(response.data.data)) {
+          // 后端已分组，直接用
+          locations = response.data.data;
+        } else if (response.data.data && Array.isArray(response.data.data.items)) {
+          // 后端返回扁平items数组，需要前端分组
+          const items = response.data.data.items;
+          const locationMap = {};
+          items.forEach(item => {
+            if (!locationMap[item.location_code]) {
+              locationMap[item.location_code] = [];
+            }
+            locationMap[item.location_code].push(item);
+          });
+          locations = Object.entries(locationMap).map(([location_code, items]) => ({
+            location_code,
             items,
-            skuCount,
-            productCount,
-            totalQuantity
-          };
-        });
+            skuCount: items.length,
+            productCount: new Set(items.map(it => it.product_code)).size,
+            totalQuantity: items.reduce((sum, it) => sum + (it.stock_quantity || 0), 0)
+          }));
+        }
         setLocations(locations);
         setFilteredLocations(locations);
         setLocationOptions(
@@ -590,10 +595,11 @@ const MobileLocationInventory = () => {
         location_code: currentLocationCode,
         target_quantity: Number(editQuantity),
         operator_id: currentUser.user_id,
-        notes: '手动修改库存数量'
+        notes: '手动修改库存数量',
+        batch_number: editingItem.batch_number || '',
+        is_urgent: false
       };
       const response = await api.post('/inventory/adjust', requestData);
-      // API已经返回最新库存数据，不需要重新获取
       if (response.data && response.data.inventory) {
         const { sku_location_quantity, sku_total_quantity } = response.data.inventory;
         console.log('库存调整完成，最新库存:', { sku_location_quantity, sku_total_quantity });
@@ -634,16 +640,18 @@ const MobileLocationInventory = () => {
     try {
       setLoading(true);
       const fromLocationCode = selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code;
-      const response = await api.post('/inventory/transfer', {
+      const requestData = {
         sku_code: editingItem.sku_code,
         from_location_code: fromLocationCode,
         to_location_code: targetLocation,
         transfer_quantity: Number(transferQuantity),
         operator_id: currentUser.user_id,
-        notes: '移动库存操作'
-      });
+        notes: '移动库存操作',
+        batch_number: editingItem.batch_number || '',
+        is_urgent: false
+      };
+      const response = await api.post('/inventory/transfer', requestData);
       message.success('转移成功');
-      // API已经返回最新库存数据，不需要重新获取
       if (response.data && response.data.inventory) {
         const { sku_location_quantity, sku_total_quantity } = response.data.inventory;
         console.log('库存转移完成，最新库存:', { sku_location_quantity, sku_total_quantity });
@@ -667,35 +675,26 @@ const MobileLocationInventory = () => {
   // 将商品从当前库位移动到"无货位"
   const moveToNoLocation = async (item) => {
     if (!item || !selectedLocation) return;
-    
     try {
       setLoading(true);
-      
-      // 修复库位编码获取逻辑
       const fromLocationCode = selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code;
-      
-      // 直接使用库存转移API，更高效
-      const response = await api.post('/inventory/transfer', {
+      const requestData = {
         sku_code: item.sku_code,
         from_location_code: fromLocationCode,
-        to_location_code: "无货位",
+        to_location_code: '无货位',
         transfer_quantity: Number(item.quantity),
         operator_id: currentUser.user_id,
-        notes: '移动到无货位操作'
-      });
-      
+        notes: '移动到无货位操作',
+        batch_number: item.batch_number || '',
+        is_urgent: false
+      };
+      const response = await api.post('/inventory/transfer', requestData);
       message.success('商品已移至无货位');
-      
-      // API已经返回最新库存数据，不需要重新获取
       if (response.data && response.data.inventory) {
         const { sku_location_quantity, sku_total_quantity } = response.data.inventory;
         console.log('移动到无货位完成，最新库存:', { sku_location_quantity, sku_total_quantity });
       }
     } catch (error) {
-      console.error('移动到无货位失败:', error);
-      if (error.response) {
-        console.error('错误详情:', error.response.data);
-      }
       message.error('操作失败: ' + (error.response?.data?.message || error.message));
     } finally {
       setLoading(false);
@@ -782,9 +781,27 @@ const MobileLocationInventory = () => {
     setSelectedNoLocItem(null);
     setAddQuantity(1);
     try {
-              const res = await api.get('/inventory/location');
-      const noLoc = res.data.data.find(loc => loc.location_code === '无货位');
-      setNoLocationItems(noLoc ? noLoc.items : []);
+      const res = await api.get('/inventory/location?location_code=无货位');
+      let noLocItems = [];
+      if (Array.isArray(res.data.data)) {
+        // 兼容数组结构
+        const noLoc = res.data.data.find(loc => loc.location_code === '无货位');
+        noLocItems = noLoc ? noLoc.items : [];
+      } else if (res.data.data && Array.isArray(res.data.data.items) && res.data.data.location_code === '无货位') {
+        // 直接就是无货位对象
+        noLocItems = res.data.data.items;
+      } else if (res.data.data && Array.isArray(res.data.data.items)) {
+        // 兼容扁平items结构
+        const items = res.data.data.items;
+        const locationMap = {};
+        items.forEach(item => {
+          if (!locationMap[item.location_code]) locationMap[item.location_code] = [];
+          locationMap[item.location_code].push(item);
+        });
+        const noLoc = Object.entries(locationMap).find(([location_code]) => location_code === '无货位');
+        noLocItems = noLoc ? noLoc[1] : [];
+      }
+      setNoLocationItems(noLocItems);
     } catch (e) {
       setNoLocationItems([]);
     }
@@ -1450,23 +1467,35 @@ const MobileLocationInventory = () => {
     }
     try {
       setLoading(true);
-      const endpoint = inoutType === 'in' ? '/inbound/' : '/outbound/';
       const locationCode = selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code;
-      const requestData = {
-        location_code: locationCode,
-        quantity: inoutQuantity,
-        product_code: inoutItem?.product_code,
-        product_id: inoutItem?.product_id,
-        sku_code: inoutItem?.sku_code,
-        sku_color: inoutItem?.sku_color,
-        sku_size: inoutItem?.sku_size,
-        operator_id: currentUser.user_id,
-        notes: `${inoutType === 'in' ? '入库' : '出库'}操作 - 货位: ${locationCode}`
-      };
+      let endpoint = '';
+      let requestData = {};
+      if (inoutType === 'in') {
+        endpoint = '/inbound';
+        requestData = {
+          sku_code: inoutItem?.sku_code,
+          location_code: locationCode,
+          inbound_quantity: inoutQuantity,
+          operator_id: currentUser.user_id,
+          notes: '入库操作',
+          batch_number: inoutItem?.batch_number || '',
+          is_urgent: false
+        };
+      } else {
+        endpoint = '/outbound';
+        requestData = {
+          sku_code: inoutItem?.sku_code,
+          location_code: locationCode,
+          outbound_quantity: inoutQuantity,
+          operator_id: currentUser.user_id,
+          notes: '出库操作',
+          batch_number: inoutItem?.batch_number || '',
+          is_urgent: false
+        };
+      }
       const response = await api.post(endpoint, requestData);
       setInoutVisible(false);
       message.success(`${inoutType === 'in' ? '入库' : '出库'}成功`);
-      // API已经返回最新库存数据，不需要重新获取
       if (response.data && response.data.inventory) {
         const { sku_location_quantity, sku_total_quantity } = response.data.inventory;
         console.log(`${inoutType === 'in' ? '入库' : '出库'}完成，最新库存:`, { sku_location_quantity, sku_total_quantity });
@@ -1511,11 +1540,12 @@ const MobileLocationInventory = () => {
         location_code: currentLocationCode,
         target_quantity: 0,
         operator_id: currentUser.user_id,
-        notes: '清库存'
+        notes: '清库存',
+        batch_number: item.batch_number || '',
+        is_urgent: false
       };
       const response = await api.post('/inventory/adjust', requestData);
       message.success('清库存成功');
-      // API已经返回最新库存数据，不需要重新获取
       if (response.data && response.data.inventory) {
         const { sku_location_quantity, sku_total_quantity } = response.data.inventory;
         console.log('清库存完成，最新库存:', { sku_location_quantity, sku_total_quantity });
@@ -1548,11 +1578,12 @@ const MobileLocationInventory = () => {
         to_location_code: toLocationCode,
         transfer_quantity: Number(qty),
         operator_id: currentUser.user_id,
-        notes: '清库位-移至无货位'
+        notes: '清库位-移至无货位',
+        batch_number: item.batch_number || '',
+        is_urgent: false
       };
       const response = await api.post('/inventory/transfer', requestData);
       message.success('清库位成功，库存已移至无货位');
-      // API已经返回最新库存数据，不需要重新获取
       if (response.data && response.data.inventory) {
         const { sku_location_quantity, sku_total_quantity } = response.data.inventory;
         console.log('清库位完成，最新库存:', { sku_location_quantity, sku_total_quantity });
@@ -1886,32 +1917,23 @@ const MobileLocationInventory = () => {
                       </div>
                       {isExpanded && (
                         <div style={{display: 'flex', flexDirection: 'row', gap: 8, marginTop: 4, width: '100%', justifyContent: 'flex-start'}} onClick={e => e.stopPropagation()}>
-                          <Button size="small" style={{backgroundColor: '#fadb14', borderColor: '#fadb14', color: '#000'}} onClick={() => { console.log('点击修改，selectedLocation:', selectedLocation, 'item:', item); startEdit(item); }}>修改</Button>
-                          <Button size="small" style={{backgroundColor: '#52c41a', borderColor: '#52c41a', color: '#fff'}} onClick={() => { console.log('点击转移，selectedLocation:', selectedLocation, 'item:', item); showTransferModal(item); }}>转移</Button>
-                          <Button size="small" danger onClick={() => { console.log('点击清库位，selectedLocation:', selectedLocation, 'item:', item); handleClearLocation(item); }}>清库位</Button>
-                          <Button type="primary" size="small" onClick={() => { console.log('点击入库，selectedLocation:', selectedLocation, 'item:', item); setInoutItem(item); showInoutModal('in', locationDetail.location_code, item); }}>入库</Button>
-                          <Button danger size="small" onClick={() => { console.log('点击出库，selectedLocation:', selectedLocation, 'item:', item); setInoutItem(item); showInoutModal('out', locationDetail.location_code, item); }}>出库</Button>
-                          <Button
-                            danger
-                            type="primary"
-                            icon={<ExclamationCircleOutlined />}
-                            style={{
-                              background: '#ff4d4f',
-                              borderColor: '#ff4d4f',
-                              fontWeight: 'bold',
-                              marginLeft: 12,
-                              boxShadow: '0 0 0 2px #fff, 0 0 0 4px #ffccc7'
-                            }}
-                            onClick={() => handleClearStockWithConfirm(item)}
-                            title="此操作不可恢复，请谨慎操作"
-                          >
-                            清库存
-                          </Button>
+                          <Button type="primary" size="small" onClick={() => { setInoutItem(item); showInoutModal('in', locationDetail.location_code, item); }}>入库</Button>
+                          <Button danger size="small" onClick={() => { setInoutItem(item); showInoutModal('out', locationDetail.location_code, item); }}>出库</Button>
+                          <Button size="small" style={{backgroundColor: '#fadb14', borderColor: '#fadb14', color: '#000'}} onClick={() => { startEdit(item); }}>修改</Button>
+                          <Button size="small" style={{backgroundColor: '#52c41a', borderColor: '#52c41a', color: '#fff'}} onClick={() => { showTransferModal(item); }}>转移</Button>
+                          <Button size="small" danger onClick={() => { handleClearLocation(item); }}>清库位</Button>
+                          <Button danger type="primary" icon={<ExclamationCircleOutlined />} style={{ background: '#ff4d4f', borderColor: '#ff4d4f', fontWeight: 'bold', marginLeft: 12, boxShadow: '0 0 0 2px #fff, 0 0 0 4px #ffccc7' }} onClick={() => handleClearStockWithConfirm(item)} title="此操作不可恢复，请谨慎操作">清库存</Button>
                         </div>
                       )}
                     </div>
                   );
                 })}
+              {/* 上架按钮放在商品列表下方 */}
+              <div style={{ textAlign: 'center', marginTop: 16 }}>
+                <Button type="primary" icon={<PlusOutlined />} onClick={showAddProductModal}>
+                  上架
+                </Button>
+              </div>
             </div>
           ) : (
             <Empty description="该货位暂无库存" />
