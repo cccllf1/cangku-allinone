@@ -18,6 +18,21 @@ const skuSchema = new mongoose.Schema({
   ]
 }, { _id: false, strict: false });
 
+// 定义颜色及其尺寸的模式
+const colorSizeSchema = new mongoose.Schema({
+  sku_size: { type: String, required: true },
+  sku_code: { type: String, required: true },
+  sku_total_quantity: { type: Number, default: 0 },
+  locations: [{ type: mongoose.Schema.Types.Mixed }]
+}, { _id: false });
+
+const colorSchema = new mongoose.Schema({
+  color: { type: String, required: true },
+  image_path: { type: String },
+  color_total_quantity: { type: Number, default: 0 }, // 该颜色下所有尺寸的总数量
+  sizes: [colorSizeSchema]
+}, { _id: false });
+
 // 定义外部码关联（商品级，保留不动）
 const external_codeSchema = new mongoose.Schema({
   external_code: { type: String, required: true },
@@ -31,8 +46,14 @@ const productSchema = new mongoose.Schema({
   unit: { type: String, default: '件' },
   image: { type: String },
   description: { type: String },
-  has_sku: { type: Boolean, default: false },
+  has_sku: { type: Boolean, default: true }, // 系统只支持变体商品
+  // 添加商品分类字段
+  category_code_1: { type: String }, // 一级分类代码，如 "CLOTHING"
+  category_name_1: { type: String }, // 一级分类名称，如 "服装"
+  category_code_2: { type: String }, // 二级分类代码，如 "TOPS", "BOTTOMS"
+  category_name_2: { type: String }, // 二级分类名称，如 "上装", "下装"
   skus: [skuSchema], // 产品可以有多个SKU
+  colors: [colorSchema], // 颜色结构，支持层级管理
   image_path: { type: String }, // 增加图片路径字段，兼容不同格式
   external_codes: [external_codeSchema] // 关联的外部条码（商品级）
 }, { timestamps: true });

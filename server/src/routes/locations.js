@@ -15,6 +15,10 @@ router.get('/', auth, async (req, res) => {
       location_id: loc._id.toString(),
       location_code: loc.location_code || loc.code,
       location_name: loc.location_name || loc.name || loc.code,
+      category_code_1: loc.category_code_1 || '',
+      category_name_1: loc.category_name_1 || '',
+      category_code_2: loc.category_code_2 || '',
+      category_name_2: loc.category_name_2 || '',
       description: loc.description || '',
       priority: loc.priority || 0,
       is_defective: !!loc.defective
@@ -40,7 +44,19 @@ router.get('/', auth, async (req, res) => {
 // 新增库位
 router.post('/', auth, async (req, res) => {
   try {
-    let { location_code, code, location_name, name, description, priority, is_defective } = req.body;
+    let { 
+      location_code, 
+      code, 
+      location_name, 
+      name, 
+      description, 
+      priority, 
+      is_defective,
+      category_code_1,
+      category_name_1,
+      category_code_2,
+      category_name_2
+    } = req.body;
     location_code = location_code || code;
     location_name = location_name || name || location_code;
     
@@ -70,13 +86,21 @@ router.post('/', auth, async (req, res) => {
       location_name,
       description: description || '',
       priority: Number(priority) || 0,
-      is_defective: !!is_defective
+      is_defective: !!is_defective,
+      category_code_1: category_code_1 || '',
+      category_name_1: category_name_1 || '一级分类',
+      category_code_2: category_code_2 || '',
+      category_name_2: category_name_2 || '二级分类'
     });
 
     const formattedLocation = {
       location_id: location._id.toString(),
       location_code: location.location_code,
       location_name: location.location_name,
+      category_code_1: location.category_code_1 || '',
+      category_name_1: location.category_name_1 || '',
+      category_code_2: location.category_code_2 || '',
+      category_name_2: location.category_name_2 || '',
       description: location.description || '',
       priority: location.priority || 0,
       is_defective: !!location.is_defective,

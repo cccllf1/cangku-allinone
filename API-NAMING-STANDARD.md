@@ -267,74 +267,21 @@ if (!loc) throw new Error('缺少 location_code 字段');
 
 ### 2. 按商品聚合库存
 
-#### 接口：`GET /api/inventory/by-product?page=1&pageSize=1000`
+#### 接口：`GET /api/products` （已整合库存统计功能）
 
-- **功能**：按商品聚合展示所有商品的所有SKU、颜色、尺码、各库位库存明细。
+- **功能**：商品管理接口已整合库存统计功能，提供完整的商品信息+库存明细。
+- **说明**：原 `/inventory/by-product` 接口已删除，功能完全整合到此接口中。
 - **请求参数**：
   - `page`（可选，默认1）：页码
-  - `pageSize`（可选，默认50）：每页条数
-  - `code`（可选）：指定商品编码，仅返回该商品
-- **返回结构**：
-  ```json
-  {
-    "success": true,
-    "data": [
-      {
-        "product_id": "6832e24966142406d2ef0dca",
-        "product_code": "129092",
-        "product_name": "129092",
-        "unit": "件",
-        "image_path": "/uploads/product-xxx.jpg",
-        "has_sku": true,
-        "total_quantity": 321,
-        "sku_count": 24,
-        "location_count": 7,
-        "color_count": 6,
-        "colors": [
-          {
-            "color": "黄色",
-            "image_path": "/uploads/product-xxx.jpeg",
-            "sizes": [
-              {
-                "sku_size": "M",
-                "sku_code": "129092-黄色-M",
-                "total_quantity": 8,
-                "locations": [
-                  { "location_code": "西8排1架6层4位", "stock_quantity": 8 }
-                ]
-              }
-              // ...更多尺码
-            ],
-            "total_quantity": 35,
-            "sku_count": 4,
-            "location_count": 2
-          }
-          // ...更多颜色
-        ],
-        "skus": [
-          {
-            "sku_code": "129092-黄色-M",
-            "sku_color": "黄色",
-            "sku_size": "M",
-            "image_path": "/uploads/product-xxx.jpeg"
-          }
-          // ...更多SKU
-        ]
-      }
-      // ...更多商品
-    ],
-    "pagination": {
-      "page": 1,
-      "pageSize": 1000,
-      "total": 5
-    },
-    "error_code": null,
-    "error_message": null
-  }
-  ```
+  - `page_size`（可选，默认50）：每页条数
+  - `search`（可选）：商品编码或名称搜索
+  - `category_code_1`、`category_code_2`（可选）：分类筛选
+  - `has_stock_only`（可选）：只显示有库存的商品
+- **返回结构**：完全相同的商品聚合库存结构
 - **典型用途**：
-  - 查询某个商品所有SKU、所有颜色、所有尺码、所有库位的库存分布
+  - 商品管理界面的库存统计显示
   - 前端商品视图、SKU管理、库存分析等场景
+  - 替代原 `/inventory/by-product` 的所有使用场景
 
 ---
 
@@ -992,6 +939,40 @@ curl -X POST http://192.168.11.252:8610/api/inventory/transfer \
 - 所有移库、清库位等操作，目标库位统一传 "无货位"
 - 数据库应有一条 location_code 为 "无货位" 的库位记录
 - 禁止用空字符串、null 或其它变体兜底
+
+### 字段命名唯一性原则 🔒
+
+**核心规则**: 每个字段名都有且仅有一个明确含义，严禁出现以下情况：
+1. **一个含义多个字段名** - 同一个业务概念不能用多个不同的字段名表示
+2. **一个字段名多个含义** - 同一个字段名不能在不同场景表示不同含义
+
+**违规示例**:
+```json
+// ❌ 错误：一个含义多个字段名
+{
+  "target_quantity": 100,     // 目标库存
+  "stock_quantity": 100,      // 目标库存（同一含义）
+  "quantity": 100             // 目标库存（同一含义）
+}
+
+// ❌ 错误：一个字段名多个含义  
+{
+  "stock_quantity": 50        // 在入库场景表示入库数量
+}
+{
+  "stock_quantity": 50        // 在响应中表示库位库存（不同含义）
+}
+```
+
+**正确示例**:
+```json
+// ✅ 正确：每个字段有唯一含义
+{
+  "inbound_quantity": 10,           // 入库数量（请求参数）
+  "sku_location_quantity": 60,      // SKU在库位的数量（响应字段）
+  "sku_total_quantity": 110         // SKU总数量（响应字段）
+}
+```
 
 ### 合计库存字段命名规范
 

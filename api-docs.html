@@ -224,9 +224,22 @@
         </div>
 
         <div class="section">
-            <h2>📝 通用字段说明</h2>
+            <h2>📝 API命名标准</h2>
+            <div class="note" style="background-color: #fff3cd; border: 1px solid #ffeaa7;">
+                <div class="note-title" style="color: #856404;">⚠️ 重要：字段命名规范</div>
+                <p style="color: #856404;">本API严格遵循 <strong>snake_case</strong> 命名规范，禁止使用简化字段名：</p>
+                <ul style="color: #856404; margin: 0.5rem 0; padding-left: 1.5rem;">
+                    <li>✅ 使用 <code>product_code</code> 而不是 <code>code</code></li>
+                    <li>✅ 使用 <code>product_name</code> 而不是 <code>name</code></li>  
+                    <li>✅ 使用 <code>sku_code</code> 而不是 <code>code</code></li>
+                    <li>✅ 使用 <code>location_code</code> 而不是 <code>code</code></li>
+                    <li>✅ 使用 <code>is_defective</code> 而不是 <code>defective</code></li>
+                    <li>✅ 使用 <code>external_codes</code> 而不是 <code>external_code</code></li>
+                </ul>
+            </div>
+            
             <div class="note">
-                <div class="note-title">🔍 审计与控制字段</div>
+                <div class="note-title">🔍 通用字段说明</div>
                 <p>以下字段适用于所有修改操作（POST/PUT）：</p>
                 <table class="param-table">
                     <tr>
@@ -353,29 +366,161 @@
                     <span class="method get">GET</span>
                     <span class="endpoint-url">/products</span>
                 </div>
-                <div class="endpoint-description">获取所有商品列表</div>
+                <div class="endpoint-description">获取商品列表（包含库存统计）</div>
+                
+                <div class="params">
+                    <h4>查询参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>page</td><td>number</td><td class="optional">否</td><td>页码，默认1</td></tr>
+                        <tr><td>page_size</td><td>number</td><td class="optional">否</td><td>每页数量，默认50</td></tr>
+                        <tr><td>search</td><td>string</td><td class="optional">否</td><td>商品编码或名称搜索</td></tr>
+                        <tr><td>category_code_1</td><td>string</td><td class="optional">否</td><td>一级分类筛选</td></tr>
+                        <tr><td>category_code_2</td><td>string</td><td class="optional">否</td><td>二级分类筛选</td></tr>
+                        <tr><td>has_stock_only</td><td>boolean</td><td class="optional">否</td><td>只显示有库存的商品</td></tr>
+                    </table>
+                </div>
+                
                 <div class="response">
-                    <h4>响应示例:</h4>
+                    <h4>📥 完整响应示例:</h4>
                     <div class="code-block">
-[
-  {
-    "id": "64f7b1c8e4b0c1234567890a",
-    "code": "PROD001",
-    "name": "测试商品",
-    "unit": "件",
-    "image_path": "/uploads/image123.jpg",
-    "has_sku": true,
-    "skus": [
+{
+  "success": true,
+  "data": {
+    "products": [
       {
-        "code": "PROD001-RED-L",
-        "color": "红色",
-        "size": "L",
-        "external_code": ["123456789"]
+        "product_id": "64f7b1c8e4b0c1234567890a",
+        "product_code": "SHIRT-001", 
+        "product_name": "经典衬衫",
+        "unit": "件",
+        "image_path": "/uploads/shirt-001.jpg",
+        "has_sku": true,
+        "category_code_1": "CLOTHING",
+        "category_name_1": "服装",
+        "category_code_2": "TOPS", 
+        "category_name_2": "上装",
+        "description": "高品质商务衬衫",
+        "product_total_quantity": 280,
+        "sku_count": 4,
+        "location_count": 3,
+        "color_count": 2,
+        "colors": [
+          {
+            "color": "红",
+            "image_path": "/uploads/colors/shirt-001-red.jpg",
+            "color_total_quantity": 150,
+            "sku_count": 2,
+            "location_count": 2,
+            "sizes": [
+              {
+                "sku_size": "L",
+                "sku_code": "SHIRT-001-红-L",
+                "sku_total_quantity": 100,
+                "locations": [
+                  {
+                    "location_code": "A01-01-01",
+                    "stock_quantity": 60
+                  },
+                  {
+                    "location_code": "A01-01-02", 
+                    "stock_quantity": 40
+                  }
+                ]
+              },
+              {
+                "sku_size": "XL",
+                "sku_code": "SHIRT-001-红-XL",
+                "sku_total_quantity": 50,
+                "locations": [
+                  {
+                    "location_code": "A01-01-01",
+                    "stock_quantity": 50
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "color": "蓝", 
+            "image_path": "/uploads/colors/shirt-001-blue.jpg",
+            "color_total_quantity": 130,
+            "sku_count": 2,
+            "location_count": 2,
+            "sizes": [
+              {
+                "sku_size": "L",
+                "sku_code": "SHIRT-001-蓝-L", 
+                "sku_total_quantity": 80,
+                "locations": [
+                  {
+                    "location_code": "A01-01-02",
+                    "stock_quantity": 80
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "skus": [
+          {
+            "sku_code": "SHIRT-001-红-L",
+            "sku_color": "红",
+            "sku_size": "L",
+            "image_path": "/uploads/colors/shirt-001-red.jpg"
+          },
+          {
+            "sku_code": "SHIRT-001-红-XL",
+            "sku_color": "红", 
+            "sku_size": "XL",
+            "image_path": "/uploads/colors/shirt-001-red.jpg"
+          }
+        ],
+        "created_at": "2024-12-01T10:30:00Z",
+        "updated_at": "2024-12-01T15:30:00Z"
       }
-    ]
-  }
-]
+    ],
+    "pagination": {
+      "current_page": 1,
+      "page_size": 50,
+      "total_count": 25,
+      "total_pages": 1,
+      "has_next_page": false,
+      "has_prev_page": false
+    }
+  },
+  "error_code": null,
+  "error_message": null
+}
                     </div>
+                </div>
+                
+                <div class="params">
+                    <h4>📤 请求示例:</h4>
+                    <div class="code-block">
+# 查询所有商品（带库存统计）
+GET /api/products?page=1&page_size=10
+
+# 搜索指定商品
+GET /api/products?search=SHIRT-001&page_size=1
+
+# 按分类筛选
+GET /api/products?category_code_1=CLOTHING&has_stock_only=true
+
+# 复合查询
+GET /api/products?search=衬衫&category_code_1=CLOTHING&category_code_2=TOPS&has_stock_only=true&page=1&page_size=20
+                    </div>
+                </div>
+                
+                <div class="note">
+                    <div class="note-title">📊 库存统计说明</div>
+                    <p><strong>此接口已整合库存统计功能，替代原 /inventory/by-product 接口：</strong></p>
+                    <ul>
+                        <li><strong>product_total_quantity:</strong> 商品所有SKU的总库存</li>
+                        <li><strong>color_total_quantity:</strong> 每种颜色下所有尺寸的总库存</li>
+                        <li><strong>sku_total_quantity:</strong> 单个SKU在所有库位的总库存</li>
+                        <li><strong>locations:</strong> 每个SKU在各库位的详细库存分布</li>
+                        <li><strong>total_sku_count/total_location_count/total_color_count:</strong> 各层级的统计数量</li>
+                    </ul>
                 </div>
             </div>
 
@@ -389,7 +534,7 @@
                     <h4>路径参数:</h4>
                     <table class="param-table">
                         <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
-                        <tr><td>id</td><td>string</td><td class="required">是</td><td>商品ID</td></tr>
+                        <tr><td>product_id</td><td>string</td><td class="required">是</td><td>商品ID</td></tr>
                     </table>
                 </div>
             </div>
@@ -404,7 +549,7 @@
                     <h4>路径参数:</h4>
                     <table class="param-table">
                         <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
-                        <tr><td>code</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
+                        <tr><td>product_code</td><td>string</td><td class="required">是</td><td>商品编码或SKU编码</td></tr>
                     </table>
                 </div>
             </div>
@@ -415,13 +560,21 @@
                     <span class="endpoint-url">/products</span>
                 </div>
                 <div class="endpoint-description">创建新商品</div>
+                <div class="note">
+                    <div class="note-title">🏷️ 商品分类说明</div>
+                    <p>分类字段用于组织商品：一级分类如"服装"、"鞋类"；二级分类如"上装"、"下装"、"运动鞋"等。</p>
+                </div>
                 <div class="params">
                     <h4>请求参数:</h4>
                     <table class="param-table">
                         <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
-                        <tr><td>code</td><td>string</td><td class="required">是</td><td>商品编码</td></tr>
-                        <tr><td>name</td><td>string</td><td class="optional">否</td><td>商品名称</td></tr>
+                        <tr><td>product_code</td><td>string</td><td class="required">是</td><td>商品编码</td></tr>
+                        <tr><td>product_name</td><td>string</td><td class="optional">否</td><td>商品名称</td></tr>
                         <tr><td>unit</td><td>string</td><td class="optional">否</td><td>计量单位，默认"件"</td></tr>
+                        <tr><td>category_code_1</td><td>string</td><td class="optional">否</td><td>一级分类编码（如"CLOTHING"）</td></tr>
+                        <tr><td>category_name_1</td><td>string</td><td class="optional">否</td><td>一级分类名称（如"服装"）</td></tr>
+                        <tr><td>category_code_2</td><td>string</td><td class="optional">否</td><td>二级分类编码（如"TOPS"）</td></tr>
+                        <tr><td>category_name_2</td><td>string</td><td class="optional">否</td><td>二级分类名称（如"上装"）</td></tr>
                         <tr><td>image_path</td><td>string</td><td class="optional">否</td><td>商品图片路径</td></tr>
                         <tr><td>has_sku</td><td>boolean</td><td class="optional">否</td><td>是否有SKU</td></tr>
                         <tr><td>skus</td><td>array</td><td class="optional">否</td><td>SKU列表</td></tr>
@@ -462,12 +615,12 @@
                     <div class="code-block">
 [
   {
-    "id": "64f7b1c8e4b0c1234567890b",
-    "code": "A01-01-01",
-    "name": "A区1排1号",
+    "location_id": "64f7b1c8e4b0c1234567890b",
+    "location_code": "A01-01-01",
+    "location_name": "A区1排1号",
     "description": "主库位",
     "priority": 1,
-    "defective": false
+    "is_defective": false
   }
 ]
                     </div>
@@ -484,7 +637,7 @@
                     <h4>路径参数:</h4>
                     <table class="param-table">
                         <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
-                        <tr><td>code</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
+                        <tr><td>location_code</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
                     </table>
                 </div>
             </div>
@@ -499,11 +652,11 @@
                     <h4>请求参数:</h4>
                     <table class="param-table">
                         <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
-                        <tr><td>code</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
-                        <tr><td>name</td><td>string</td><td class="optional">否</td><td>库位名称</td></tr>
+                        <tr><td>location_code</td><td>string</td><td class="required">是</td><td>库位编码</td></tr>
+                        <tr><td>location_name</td><td>string</td><td class="optional">否</td><td>库位名称</td></tr>
                         <tr><td>description</td><td>string</td><td class="optional">否</td><td>库位描述</td></tr>
                         <tr><td>priority</td><td>number</td><td class="optional">否</td><td>优先级</td></tr>
-                        <tr><td>defective</td><td>boolean</td><td class="optional">否</td><td>是否为次品区</td></tr>
+                        <tr><td>is_defective</td><td>boolean</td><td class="optional">否</td><td>是否为次品区</td></tr>
                     </table>
                 </div>
             </div>
@@ -531,7 +684,7 @@
       {
         "location_id": "64f7b1c8e4b0c1234567890b",
         "location_code": "A01-01-01",
-        "qstock_quantity": 100,
+        "stock_quantity": 100,
         "batch_number": "BATCH001"
       }
     ],
@@ -794,9 +947,74 @@
             <div class="endpoint">
                 <div class="endpoint-header">
                     <span class="method get">GET</span>
+                    <span class="endpoint-url">/products/external-code/:code</span>
+                </div>
+                <div class="endpoint-description">根据外部条码查询商品信息（推荐使用）</div>
+                <div class="params">
+                    <h4>路径参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>code</td><td>string</td><td class="required">是</td><td>外部条码</td></tr>
+                    </table>
+                </div>
+                <div class="note">
+                    <div class="note-title">🎯 智能查询</div>
+                    <p>此API会自动查询商品级和SKU级的外部条码，如果是SKU级外部条码，会返回 <code>matched_sku</code> 字段，前端可据此自动选择颜色尺码，提供与SKU编码查询相同的用户体验。</p>
+                </div>
+                <div class="response">
+                    <h4>📥 成功响应示例:</h4>
+                    <div class="code-block">
+{
+  "success": true,
+  "data": {
+    "product_id": "64f9a1b2c3d4e5f6789abc01",
+    "product_code": "SHIRT-001",
+    "product_name": "经典纯棉T恤",
+    "unit": "件",
+    "has_sku": true,
+    "category_code_1": "CLOTHING",
+    "category_name_1": "服装",
+    "category_code_2": "TOPS",
+    "category_name_2": "上装",
+    "product_total_quantity": 150,
+    "colors": [...],
+    "description": "高品质纯棉面料制作",
+    "external_code": {
+      "code": "EXT123456",
+      "source": "客户A",
+      "description": "客户A的商品条码"
+    },
+    "matched_sku": {
+      "sku_code": "SHIRT-001-红-L",
+      "sku_color": "红",
+      "sku_size": "L",
+      "stock_quantity": 25,
+      "image_path": "/uploads/red-shirt.jpg"
+    },
+    "created_at": "2024-01-01T10:00:00Z",
+    "updated_at": "2024-01-15T14:30:00Z"
+  },
+  "error_code": null,
+  "error_message": null
+}
+                    </div>
+                </div>
+                <div class="params">
+                    <h4>响应字段说明:</h4>
+                    <table class="param-table">
+                        <tr><th>字段名</th><th>类型</th><th>说明</th></tr>
+                        <tr><td>external_code</td><td>object</td><td>匹配的外部条码信息</td></tr>
+                        <tr><td>matched_sku</td><td>object</td><td><strong>仅SKU级外部条码时返回</strong>，包含具体SKU信息</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method get">GET</span>
                     <span class="endpoint-url">/sku/external/:external_code</span>
                 </div>
-                <div class="endpoint-description">根据外部条码查找SKU信息</div>
+                <div class="endpoint-description">根据外部条码查找SKU信息（兼容接口）</div>
                 <div class="params">
                     <h4>路径参数:</h4>
                     <table class="param-table">

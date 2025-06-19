@@ -1,12 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Button, Input, message, List, Card, Space, Form, InputNumber, Select, Modal, Typography } from 'antd';
+import { Button, Input, message, List, Form, Select, Modal, Typography } from 'antd';
 const { Text } = Typography;
-import { DeleteOutlined, SyncOutlined } from '@ant-design/icons';
+import { SyncOutlined } from '@ant-design/icons';
 import * as api from '../api/request';
+import { getCurrentUser } from '../api/auth';
 import { useNavigate } from 'react-router-dom';
 import MobileNavBar from '../components/MobileNavBar';
 import theme, { getStyle, messageConfig } from '../styles/theme';
 import { getCache, setCache } from '../utils/cacheUtils';
+import InboundItemCard from '../components/InboundItemCard';
 
 const { Option } = Select;
 
@@ -18,6 +20,7 @@ const MobileInbound = () => {
   const [tableData, setTableData] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState("");
   const [loading, setLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const [form] = Form.useForm();
   const navigate = useNavigate();
   
@@ -29,6 +32,9 @@ const MobileInbound = () => {
   const [previewImage, setPreviewImage] = useState(null);
   
   const [loadingLocations, setLoadingLocations] = useState(false);
+  
+  // 计算是否可以提交：至少一个条目且每条必填字段完整
+  const canSubmit = tableData.length > 0 && tableData.every(it => it.sku_code && it.location_code && it.stock_quantity > 0);
   
   // 处理退出登录
   const handleLogout = () => {
@@ -56,7 +62,7 @@ const MobileInbound = () => {
 
       // 缓存不存在或强制刷新时，从服务器获取
       setLoadingLocations(true);
-      const response = await api.get('/api/inventory/by-location');
+              const response = await api.get('/api/inventory/location');
       if (response?.data?.success) {
         const locations = response.data.data || [];
         // 创建库位选项并插入"无货位"
@@ -88,10 +94,22 @@ const MobileInbound = () => {
     }
   };
   
-  // 页面加载时获取库位
+  // 页面加载时获取库位和用户信息
   useEffect(() => {
     fetchLocations();
+    fetchCurrentUser();
   }, []);
+  
+  // 获取当前用户信息
+  const fetchCurrentUser = async () => {
+    try {
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+    } catch (error) {
+      console.error('获取用户信息失败:', error);
+      navigate('/login');
+    }
+  };
   
   // 添加点击外部区域关闭下拉菜单的处理
   useEffect(() => {
@@ -243,7 +261,7 @@ const MobileInbound = () => {
           map[col].sizes.push({
             sku_size: sku.sku_size,
             sku_code: sku.sku_code,
-            total_quantity: sku.stock_quantity || 0,
+            sku_total_quantity: sku.stock_quantity || 0,
             locations: []
           });
         });
@@ -268,18 +286,31 @@ const MobileInbound = () => {
             label: `${size.sku_size} (${size.sku_code})`,
             value: size.sku_code,
             size: size.sku_size,
-            total_quantity: size.total_quantity,
+            sku_total_quantity: size.sku_total_quantity,
             locations: size.locations || []
           }));
         }
       });
 
-      // === 如果原始扫描是完整SKU，自动选中颜色和尺码 ===
+      // === 自动选中颜色和尺码逻辑 ===
       let autoColor = null;
       let autoSkuCode = null;
       let autoSize = null;
       let autoLocation = selectedLocation || "无货位";
-      if (rawCode.includes('-')) {
+      
+      // 1. 如果API返回了matched_sku（SKU编码查询 或 SKU级外部条码查询）
+      if (product.matched_sku) {
+        autoColor = product.matched_sku.sku_color;
+        autoSkuCode = product.matched_sku.sku_code;
+        autoSize = product.matched_sku.sku_size;
+        // 查找库位信息
+        const locArr = sizeOptions[autoColor]?.find(sz => sz.value === autoSkuCode)?.locations;
+        if (locArr && locArr.length === 1) {
+          autoLocation = locArr[0].location_code;
+        }
+      }
+      // 2. 如果原始扫描是完整SKU格式（包含'-'）
+      else if (rawCode.includes('-')) {
         const parts = rawCode.split('-');
         if (parts.length >= 3) {
           autoColor = parts[1];
@@ -330,11 +361,13 @@ const MobileInbound = () => {
     console.log('Color Change:', color);
     setTableData(prev => prev.map(item => {
       if (item.key === key) {
+        const colorObj = (item.colors || []).find(c => c.color === color);
         return {
           ...item,
           sku_color: color,
           sku_code: null,
           sku_size: null,
+          image_path: colorObj?.image_path || item.image_path,
           location_code: selectedLocation || "无货位"
         };
       }
@@ -363,6 +396,7 @@ const MobileInbound = () => {
               sku_code: skuCode,
               sku_size: selectedSize.sku_size,
               display_code: skuCode, // 显示完整SKU
+              image_path: selectedColor.image_path || item.image_path,
               location_code: selectedSize.locations?.length === 1 
                 ? selectedSize.locations[0].location_code 
                 : selectedLocation || "无货位"
@@ -415,12 +449,11 @@ const MobileInbound = () => {
         }
 
         const inboundData = {
-          product_id: item.product_id,
-          location_code: item.location_code === "无货位" ? null : item.location_code,
-          quantity: item.stock_quantity,
           sku_code: item.sku_code,
-          sku_color: item.sku_color,
-          sku_size: item.sku_size
+          location_code: item.location_code === "无货位" ? "无货位" : item.location_code,
+          inbound_quantity: Number(item.stock_quantity),
+          operator_id: currentUser?.user_id,
+          notes: '移动端入库操作'
         };
         
         await api.post('/inbound/', inboundData);
@@ -430,7 +463,8 @@ const MobileInbound = () => {
       setTableData([]);
     } catch (e) {
       console.error('入库失败:', e);
-      message.error('入库失败: ' + (e.response?.data?.message || e.message || '未知错误'));
+      const errorMsg = e.response?.data?.error_message || e.response?.data?.message || e.message || '未知错误';
+      message.error('入库失败: ' + errorMsg);
     } finally {
       setLoading(false);
     }
@@ -495,9 +529,11 @@ const MobileInbound = () => {
             <Button 
               type="primary"
               size="middle"
+              disabled={!canSubmit}
               style={{
                 borderRadius: '4px',
-                fontWeight: 'normal'
+                fontWeight: 'normal',
+                opacity: canSubmit ? 1 : 0.4
               }}
               onClick={handleSubmit}
             >
@@ -527,84 +563,16 @@ const MobileInbound = () => {
           <List
             dataSource={tableData}
             renderItem={(item) => (
-              <Card
+              <InboundItemCard
                 key={item.key}
-                size="small"
-                style={{ 
-                  marginBottom: '8px',
-                  border: '1px solid #eee',
-                  borderRadius: '8px'
-                }}
-              >
-                <div style={{ 
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px'
-                }}>
-                  {/* 商品编码 */}
-                  <div style={{
-                    fontSize: '16px', 
-                    fontWeight: 'bold',
-                    padding: '4px 8px',
-                    backgroundColor: '#f5f5f5',
-                    borderRadius: '4px'
-                  }}>
-                    {item.display_code || item.product_code}
-                  </div>
-
-                  {/* 选择区域 */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <Select
-                      placeholder="选择颜色"
-                      style={{ width: '100%' }}
-                      value={item.sku_color}
-                      onChange={(color) => handleColorChange(item.key, color)}
-                      options={item.colorOptions}
-                    />
-                    {/* 尺码选择：若未选颜色则显示全部SKU列表 */}
-                    <Select
-                      placeholder="选择尺码"
-                      style={{ width: '100%' }}
-                      value={item.sku_code}
-                      onChange={(sku) => handleSkuChange(item.key, sku)}
-                      options={
-                        item.sku_color
-                          ? (item.sizeOptions?.[item.sku_color] || [])
-                          : Object.values(item.sizeOptions || {}).flat()
-                      }
-                    />
-                    {/* 货位选择：始终可编辑，直接使用全局 locationOptions */}
-                    <Select
-                      placeholder="选择货位"
-                      style={{ width: '100%' }}
-                      value={item.location_code}
-                      onChange={(loc) => handleLocationChange(item.key, loc)}
-                      options={locationOptions}
-                    />
-                    
-                    {/* 数量和删除按钮 */}
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginTop: '4px'
-                    }}>
-                      <InputNumber
-                        min={1}
-                        value={item.stock_quantity}
-                        onChange={(value) => handleQuantityChange(item.key, value)}
-                        style={{ width: '120px' }}
-                      />
-                      <Button 
-                        type="text" 
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={() => handleDelete(item.key)}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </Card>
+                item={item}
+                locationOptions={locationOptions}
+                onColorChange={handleColorChange}
+                onSkuChange={handleSkuChange}
+                onLocationChange={handleLocationChange}
+                onQuantityChange={handleQuantityChange}
+                onDelete={handleDelete}
+              />
             )}
           />
         </div>

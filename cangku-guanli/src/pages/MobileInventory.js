@@ -60,8 +60,8 @@ const MobileInventory = () => {
   const loadInventory = async () => {
     setLoading(true);
     try {
-      const res = await api.get('inventory/by-product', { params: { page: 1, pageSize: 1000 } });
-      const list = res.data.data || [];
+          const res = await api.get('products', { params: { page: 1, page_size: 1000 } });
+    const list = res.data.data?.products || [];
       setProducts(list);
       setFilteredProducts(list);
     } catch (e) {
@@ -108,8 +108,8 @@ const MobileInventory = () => {
       if (sku && sku.product_code) {
         // 拉取该SKU的历史库位和库存
         const pcode = sku.product_code.split('-')[0];
-        const res = await api.get('inventory/by-product', { params: { code: pcode } });
-        const prodData = (res.data.data || [])[0];
+        const res = await api.get('products', { params: { search: pcode, page_size: 1 } });
+        const prodData = (res.data.data?.products || [])[0];
         if (prodData && prodData.colors) {
           prodData.colors.forEach(col => {
             col.sizes.forEach(sz => {
@@ -179,17 +179,43 @@ const MobileInventory = () => {
       let endpoint = '/outbound/';
       if (warehouseActionType === 'inbound') endpoint = '/inbound/';
       else if (warehouseActionType === 'adjust') endpoint = '/inventory/adjust';
-      const payload = {
-        product_code: selectedSku.product_code,
-        location_code: selectedLocation,
-        sku_code: selectedSku.sku_code,
-        stock_quantity: quantity,
-        sku_color: selectedSku.sku_color,
-        sku_size: selectedSku.sku_size
-      };
-      await api.post(endpoint, payload);
+      let payload = {};
+      if (warehouseActionType === 'inbound') {
+        payload = {
+          sku_code: selectedSku.sku_code,
+          location_code: selectedLocation,
+          inbound_quantity: Number(quantity),
+          operator_id: currentUser?.user_id,
+          notes: '移动端入库操作'
+        };
+      } else if (warehouseActionType === 'outbound') {
+        payload = {
+          sku_code: selectedSku.sku_code,
+          location_code: selectedLocation,
+          outbound_quantity: Number(quantity),
+          operator_id: currentUser?.user_id,
+          notes: '移动端出库操作'
+        };
+      } else if (warehouseActionType === 'adjust') {
+        payload = {
+          sku_code: selectedSku.sku_code,
+          location_code: selectedLocation,
+          target_quantity: Number(quantity),
+          operator_id: currentUser?.user_id,
+          notes: '移动端库存调整'
+        };
+      }
+      const response = await api.post(endpoint, payload);
       message.success(`${warehouseActionType === 'inbound' ? '入库' : warehouseActionType === 'outbound' ? '出库' : '盘点'}成功`);
       setWarehouseActionVisible(false);
+
+      // API已经返回了最新的库存数据，直接使用而不需要刷新
+      if (response.data && response.data.inventory) {
+        const { sku_location_quantity, sku_total_quantity } = response.data.inventory;
+        console.log('操作完成，最新库存:', { sku_location_quantity, sku_total_quantity });
+      }
+
+      // 只刷新产品列表数据即可
       loadInventory();
     } catch (error) {
       message.error('操作失败: ' + (error.response?.data?.message || error.message));
@@ -207,13 +233,9 @@ const MobileInventory = () => {
     try {
       setLoading(true);
       const requestData = {
-        product_id: item.product_id,
-        product_code: item.product_code,
-        location_code,
         sku_code: item.sku_code,
-        sku_color: item.sku_color,
-        sku_size: item.sku_size,
-        stock_quantity: 0,
+        location_code,
+        target_quantity: 0,
         operator_id: currentUser.user_id,
         notes: '清库存'
       };
@@ -293,11 +315,11 @@ const MobileInventory = () => {
           商品编码{sortKey === 'product_code' ? (sortOrder === 'desc' ? ' ↓' : ' ↑') : ''}
         </Button>
         <Button
-          type={sortKey === 'total_quantity' ? 'primary' : 'default'}
-          onClick={() => handleSort('total_quantity')}
+                  type={sortKey === 'product_total_quantity' ? 'primary' : 'default'}
+        onClick={() => handleSort('product_total_quantity')}
           style={{ flex: 1, height: 30, lineHeight: '20px', fontSize: 13, padding: 0 }}
         >
-          商品库存{sortKey === 'total_quantity' ? (sortOrder === 'desc' ? ' ↓' : ' ↑') : ''}
+          商品库存{sortKey === 'product_total_quantity' ? (sortOrder === 'desc' ? ' ↓' : ' ↑') : ''}
         </Button>
         <Button
           type={sortKey === 'sku_count' ? 'primary' : 'default'}
@@ -335,7 +357,7 @@ const MobileInventory = () => {
                       分类: {Array.isArray(product.category) ? product.category.join(', ') : product.category}
                     </span>
                   )}
-                  <Badge count={`合计:${product.total_quantity ?? 0}`} style={{ backgroundColor: '#2db7f5', marginLeft: 8 }} />
+                  <Badge count={`合计:${product.product_total_quantity ?? 0}`} style={{ backgroundColor: '#2db7f5', marginLeft: 8 }} />
                   <span style={{ marginLeft: 8, color: '#faad14' }}>
                     库位: {product.location_count ?? 0}
                   </span>
@@ -350,12 +372,12 @@ const MobileInventory = () => {
                 <div className="img-list-inner" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', minWidth: 'max-content', gap: 4, alignItems: 'center' }}>
                   {product.skus && product.skus.length > 0 && product.skus.some(sku => sku.image_path)
                     ? (() => {
-                        // 构建 sku_code -> total_quantity map
+                        // 构建 sku_code -> sku_total_quantity map
                         const skuQtyMap = {};
                         if (product.colors) {
                           product.colors.forEach(col => {
                             (col.sizes || []).forEach(sz => {
-                              skuQtyMap[sz.sku_code] = sz.total_quantity;
+                              skuQtyMap[sz.sku_code] = sz.sku_total_quantity;
                             });
                           });
                         }
@@ -423,7 +445,7 @@ const MobileInventory = () => {
               <Card key={group.color+idx} size="small" style={{ marginBottom: 16, borderRadius: 10, boxShadow: '0 1px 4px #f0f1f2', border: 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: 8 }}>
                   <span style={{ fontWeight: 'bold', fontSize: 16 }}>{group.color}</span>
-                  <span style={{ color: '#52c41a', fontWeight: 500, fontSize: 14 }}>总库存: {group.sizes.reduce((sum, sz) => sum + (sz.total_quantity || 0), 0)}</span>
+                  <span style={{ color: '#52c41a', fontWeight: 500, fontSize: 14 }}>总库存: {group.color_total_quantity || group.sizes.reduce((sum, sz) => sum + (sz.sku_total_quantity || 0), 0)}</span>
                   <span style={{ fontSize: 14, fontWeight: 400, color: '#666' }}>尺码列表:</span>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap' }}>
@@ -448,7 +470,7 @@ const MobileInventory = () => {
                           <Tag color="blue" style={{ marginRight: 12, fontSize: 16, padding: '4px 12px' }}>
                             {size.sku_size} ({size.sku_code})
                             <span style={{ marginLeft: 8, color: '#52c41a', fontWeight: 500 }}>
-                              库存: {size.total_quantity}
+                              库存: {size.sku_total_quantity}
                             </span>
                           </Tag>
                           {/* 展开时显示库位、操作按钮、选货位入库 */}
@@ -499,7 +521,13 @@ const MobileInventory = () => {
                                 style={{ background: '#1890ff', borderColor: '#1890ff', marginTop: 0, width: '100%' }}
                                 onClick={async e => {
                                   e.stopPropagation();
-                                  setSelectedSku({ ...size, product_code: size.sku_code, sku_color: group.color });
+                                  setSelectedSku({
+                                    ...size,
+                                    product_code: selectedProduct.product_code,
+                                    sku_code: size.sku_code,
+                                    sku_color: group.color,
+                                    sku_size: size.sku_size
+                                  });
                                   setWarehouseActionType('inbound');
                                   await fetchLocations();
                                   setWarehouseActionVisible(true);

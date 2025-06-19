@@ -416,7 +416,7 @@ const MobileLocationInventory = () => {
   const fetchLocations = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/inventory/by-location');
+                const response = await api.get('/inventory/location');
       if (response.data && response.data.success) {
         // 适配新接口结构
         const locations = (response.data.data || []).map(loc => {
@@ -586,20 +586,18 @@ const MobileLocationInventory = () => {
       setLoading(true);
       const currentLocationCode = selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code;
       const requestData = {
-        product_id: editingItem.product_id,
-        product_code: editingItem.product_code,
-        location_code: currentLocationCode,
         sku_code: editingItem.sku_code,
-        sku_color: editingItem.sku_color || editingItem.color,
-        sku_size: editingItem.sku_size || editingItem.size,
-        stock_quantity: Number(editQuantity),
+        location_code: currentLocationCode,
+        target_quantity: Number(editQuantity),
         operator_id: currentUser.user_id,
         notes: '手动修改库存数量'
       };
-      await api.post('/inventory/adjust', requestData);
-      const updatedDetail = await fetchLocationDetail(currentLocationCode);
-      setLocationDetail(updatedDetail);
-      await fetchLocations();
+      const response = await api.post('/inventory/adjust', requestData);
+      // API已经返回最新库存数据，不需要重新获取
+      if (response.data && response.data.inventory) {
+        const { sku_location_quantity, sku_total_quantity } = response.data.inventory;
+        console.log('库存调整完成，最新库存:', { sku_location_quantity, sku_total_quantity });
+      }
       message.success('数量已更新');
       setEditMode(false);
       setEditingItem(null);
@@ -636,21 +634,20 @@ const MobileLocationInventory = () => {
     try {
       setLoading(true);
       const fromLocationCode = selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code;
-      await api.post('/inventory/transfer', {
-        product_id: editingItem.product_id,
+      const response = await api.post('/inventory/transfer', {
         sku_code: editingItem.sku_code,
         from_location_code: fromLocationCode,
         to_location_code: targetLocation,
-        stock_quantity: transferQuantity,
-        sku_color: editingItem.sku_color,
-        sku_size: editingItem.sku_size,
+        transfer_quantity: Number(transferQuantity),
         operator_id: currentUser.user_id,
         notes: '移动库存操作'
       });
       message.success('转移成功');
-      const updatedDetail = await fetchLocationDetail(fromLocationCode);
-      setLocationDetail(updatedDetail);
-      await fetchLocations();
+      // API已经返回最新库存数据，不需要重新获取
+      if (response.data && response.data.inventory) {
+        const { sku_location_quantity, sku_total_quantity } = response.data.inventory;
+        console.log('库存转移完成，最新库存:', { sku_location_quantity, sku_total_quantity });
+      }
       setTransferVisible(false);
     } catch (error) {
       message.error('转移失败: ' + (error.response?.data?.message || error.message));
@@ -677,38 +674,23 @@ const MobileLocationInventory = () => {
       // 修复库位编码获取逻辑
       const fromLocationCode = selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code;
       
-      // 先从当前库位出库 - 修复API参数
-      await api.post('/outbound/', {
-        product_id: item.product_id,
-        location_code: fromLocationCode, // 使用正确的参数名
-        quantity: item.quantity,
-        ...(item.sku_code ? {
-          sku_code: item.sku_code, // 使用正确的参数名
-          sku_color: item.sku_color,
-          sku_size: item.sku_size
-        } : {})
-      });
-      
-      // 再入库到"无货位" - 修复API参数
-      await api.post('/inbound/', {
-        product_id: item.product_id,
-        location_code: "无货位", // 使用正确的参数名
-        quantity: item.quantity,
-        ...(item.sku_code ? {
-          sku_code: item.sku_code, // 使用正确的参数名
-          sku_color: item.sku_color,
-          sku_size: item.sku_size
-        } : {})
+      // 直接使用库存转移API，更高效
+      const response = await api.post('/inventory/transfer', {
+        sku_code: item.sku_code,
+        from_location_code: fromLocationCode,
+        to_location_code: "无货位",
+        transfer_quantity: Number(item.quantity),
+        operator_id: currentUser.user_id,
+        notes: '移动到无货位操作'
       });
       
       message.success('商品已移至无货位');
       
-      // 更新本地数据
-      const updatedDetail = await fetchLocationDetail(fromLocationCode);
-      setLocationDetail(updatedDetail);
-      
-      // 刷新库位列表
-      await fetchLocations();
+      // API已经返回最新库存数据，不需要重新获取
+      if (response.data && response.data.inventory) {
+        const { sku_location_quantity, sku_total_quantity } = response.data.inventory;
+        console.log('移动到无货位完成，最新库存:', { sku_location_quantity, sku_total_quantity });
+      }
     } catch (error) {
       console.error('移动到无货位失败:', error);
       if (error.response) {
@@ -800,7 +782,7 @@ const MobileLocationInventory = () => {
     setSelectedNoLocItem(null);
     setAddQuantity(1);
     try {
-      const res = await api.get('/inventory/by-location');
+              const res = await api.get('/inventory/location');
       const noLoc = res.data.data.find(loc => loc.location_code === '无货位');
       setNoLocationItems(noLoc ? noLoc.items : []);
     } catch (e) {
@@ -862,18 +844,13 @@ const MobileLocationInventory = () => {
         return;
       }
       const transferData = {
-        product_id: product.id || product._id,
         sku_code: selectedSku ? selectedSku.sku_code : (product.sku_code || ''),
         from_location_code: fromLocationCode,
         to_location_code: toLocationCode,
-        stock_quantity: qty,
+        transfer_quantity: Number(qty),
         operator_id: currentUser.user_id,
         notes: '上架操作'
       };
-      if (selectedSku) {
-        transferData.sku_color = selectedSku.sku_color;
-        transferData.sku_size = selectedSku.sku_size;
-      }
       await api.post('/inventory/transfer', transferData);
       message.success({
         content: `已上架 ${product.name || product.product_name || product.product_code} 到 ${toLocationCode}`,
@@ -1486,12 +1463,14 @@ const MobileLocationInventory = () => {
         operator_id: currentUser.user_id,
         notes: `${inoutType === 'in' ? '入库' : '出库'}操作 - 货位: ${locationCode}`
       };
-      await api.post(endpoint, requestData);
-      const updatedDetail = await fetchLocationDetail(locationCode);
-      setLocationDetail(updatedDetail);
-      await fetchLocations();
+      const response = await api.post(endpoint, requestData);
       setInoutVisible(false);
       message.success(`${inoutType === 'in' ? '入库' : '出库'}成功`);
+      // API已经返回最新库存数据，不需要重新获取
+      if (response.data && response.data.inventory) {
+        const { sku_location_quantity, sku_total_quantity } = response.data.inventory;
+        console.log(`${inoutType === 'in' ? '入库' : '出库'}完成，最新库存:`, { sku_location_quantity, sku_total_quantity });
+      }
     } catch (error) {
       message.error(`${inoutType === 'in' ? '入库' : '出库'}失败: ` + (error.response?.data?.message || error.message));
     } finally {
@@ -1528,21 +1507,19 @@ const MobileLocationInventory = () => {
       setLoading(true);
       const currentLocationCode = selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code;
       const requestData = {
-        product_id: item.product_id,
-        product_code: item.product_code,
-        location_code: currentLocationCode,
         sku_code: item.sku_code,
-        sku_color: item.sku_color || item.color,
-        sku_size: item.sku_size || item.size,
-        stock_quantity: 0,
+        location_code: currentLocationCode,
+        target_quantity: 0,
         operator_id: currentUser.user_id,
         notes: '清库存'
       };
-      await api.post('/inventory/adjust', requestData);
-      const updatedDetail = await fetchLocationDetail(currentLocationCode);
-      setLocationDetail(updatedDetail);
-      await fetchLocations();
+      const response = await api.post('/inventory/adjust', requestData);
       message.success('清库存成功');
+      // API已经返回最新库存数据，不需要重新获取
+      if (response.data && response.data.inventory) {
+        const { sku_location_quantity, sku_total_quantity } = response.data.inventory;
+        console.log('清库存完成，最新库存:', { sku_location_quantity, sku_total_quantity });
+      }
     } catch (error) {
       message.error('清库存失败: ' + (error.response?.data?.message || error.message));
     } finally {
@@ -1566,19 +1543,20 @@ const MobileLocationInventory = () => {
     try {
       setLoading(true);
       const requestData = {
-        product_id: item.product_id,
         sku_code: item.sku_code,
         from_location_code: fromLocationCode,
         to_location_code: toLocationCode,
-        stock_quantity: qty,
+        transfer_quantity: Number(qty),
         operator_id: currentUser.user_id,
         notes: '清库位-移至无货位'
       };
-      await api.post('/inventory/transfer', requestData);
-      const updatedDetail = await fetchLocationDetail(fromLocationCode);
-      setLocationDetail(updatedDetail);
-      await fetchLocations();
+      const response = await api.post('/inventory/transfer', requestData);
       message.success('清库位成功，库存已移至无货位');
+      // API已经返回最新库存数据，不需要重新获取
+      if (response.data && response.data.inventory) {
+        const { sku_location_quantity, sku_total_quantity } = response.data.inventory;
+        console.log('清库位完成，最新库存:', { sku_location_quantity, sku_total_quantity });
+      }
     } catch (error) {
       message.error('清库位失败: ' + (error.response?.data?.message || error.message));
     } finally {
@@ -2167,16 +2145,13 @@ const MobileLocationInventory = () => {
                   const toLocationCode = selectedLocation.location_code || locationDetail?.location_code || selectedLocation.location_code;
                   const fromLocationCode = '无货位';
                   const transferData = {
-                    product_id: selectedNoLocItem.product_id,
                     sku_code: selectedNoLocItem.sku_code,
                     from_location_code: fromLocationCode,
                     to_location_code: toLocationCode,
-                    stock_quantity: addQuantity,
+                    transfer_quantity: Number(addQuantity),
                     operator_id: currentUser.user_id,
                     notes: '上架操作'
                   };
-                  if (selectedNoLocItem.sku_color) transferData.sku_color = selectedNoLocItem.sku_color;
-                  if (selectedNoLocItem.sku_size) transferData.sku_size = selectedNoLocItem.sku_size;
                   await api.post('/inventory/transfer', transferData);
                   message.success('上架成功');
                   setAddProductVisible(false);

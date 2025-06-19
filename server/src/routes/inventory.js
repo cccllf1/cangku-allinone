@@ -16,15 +16,30 @@ router.get('/', (req, res) => {
     success: false,
     data: null,
     error_code: 'API_DEPRECATED',
-    error_message: '此接口已废弃，请使用 /inventory/by-product 或 /inventory/by-location'
+            error_message: '此接口已废弃，请使用 /products 或 /inventory/location'
   });
 });
 
-// 获取指定库位的所有商品库存
-router.get('/location/:location_code', async (req, res) => {
+// 统一的库位查询接口（支持查询所有库位或指定库位）
+router.get('/location/:location_code?', async (req, res) => {
   try {
-    const location_code = decodeURIComponent(req.params.location_code);
-    // 1. 查所有产品SKU图片
+    // 获取路径参数和查询参数
+    const pathLocationCode = req.params.location_code ? decodeURIComponent(req.params.location_code) : null;
+    const { 
+      location_code: queryLocationCode, 
+      page = 1, 
+      page_size = 50, 
+      has_stock_only = 'true' 
+    } = req.query;
+
+    // 优先使用路径参数，其次使用查询参数
+    const finalLocationCode = pathLocationCode || queryLocationCode;
+    
+    const pageNum = parseInt(page);
+    const pageSizeNum = parseInt(page_size);
+    const hasStockOnly = has_stock_only === 'true';
+
+    // 1. 先获取所有商品的SKU图片映射
     const products = await Product.find({}, { skus: 1 });
     const skuImageMap = {};
     products.forEach(prod => {
@@ -32,63 +47,123 @@ router.get('/location/:location_code', async (req, res) => {
         skuImageMap[sku.sku_code] = sku.image_path || sku.image || '';
       });
     });
-    // 2. 查所有库存
-    const inventoryRecords = await Inventory.find();
-    // 3. 聚合指定库位的 items
-    const items = [];
-    inventoryRecords.forEach(inv => {
-      const productId = inv.product_id;
-      const productCode = inv.product_code;
-      const productName = inv.product_name;
-      (inv.locations || []).forEach(loc => {
-        if (loc.location_code !== location_code) return;
-        // 有SKU的情况
-        if (loc.skus && loc.skus.length > 0) {
-          loc.skus.forEach(sku => {
-            let sku_size = sku.sku_size || sku.size;
-            if (!sku_size && sku.sku_code) {
-              const parts = sku.sku_code.split('-');
-              sku_size = parts[2] || '';
-            }
-            const skuObj = sku.toObject ? sku.toObject() : sku;
-            items.push({
-              product_id: productId,
-              product_code: productCode,
-              product_name: productName,
-              sku_code: sku.sku_code,
-              sku_color: skuObj.sku_color,
-              sku_size: skuObj.sku_size,
-              stock_quantity: sku.stock_quantity || 0,
-              image_path: skuImageMap[sku.sku_code] || ''
-            });
-          });
-        } else {
-          // 无SKU的情况
-          items.push({
-            product_id: productId,
-            product_code: productCode,
-            product_name: productName,
-            sku_code: null,
-            sku_color: null,
-            sku_size: null,
-            stock_quantity: loc.stock_quantity || 0,
-            image_path: ''
-          });
-        }
+
+    // 2. 构建聚合管道
+    const pipeline = [
+      { $unwind: "$locations" },
+      { $unwind: { path: "$locations.skus", preserveNullAndEmptyArrays: true } }
+    ];
+
+    // 如果指定了库位编码，添加匹配条件
+    if (finalLocationCode) {
+      pipeline.push({ 
+        $match: { "locations.location_code": finalLocationCode } 
       });
+    }
+
+    // 添加数据投影
+    pipeline.push({
+      $project: {
+        location_code: "$locations.location_code",
+        product_id: "$product_id",
+        product_code: 1,
+        product_name: 1,
+        sku_code: "$locations.skus.sku_code",
+        sku_color: { $ifNull: ["$locations.skus.sku_color", ""] },
+        sku_size:  { $ifNull: ["$locations.skus.sku_size",  ""] },
+        stock_quantity: {
+          $cond: [ 
+            { $ifNull: ["$locations.skus.sku_code", false] }, 
+            "$locations.skus.stock_quantity", 
+            "$locations.stock_quantity" 
+          ]
+        }
+      }
     });
-    res.json({
-      success: true,
-      data: {
-        location_code,
-        items
-      },
-      error_code: null,
-      error_message: null
-    });
+
+    // 根据参数决定是否过滤零库存
+    if (hasStockOnly) {
+      pipeline.push({ $match: { stock_quantity: { $gt: 0 } } });
+    }
+
+    // 添加排序
+    pipeline.push({ $sort: { location_code: 1, product_code: 1, sku_code: 1 } });
+
+    // 如果不是查询指定库位，添加分页支持
+    if (!finalLocationCode) {
+      const countPipeline = [...pipeline, { $count: "total" }];
+      const [items, countResult] = await Promise.all([
+        Inventory.aggregate([
+          ...pipeline,
+          { $skip: (pageNum - 1) * pageSizeNum },
+          { $limit: pageSizeNum }
+        ]),
+        Inventory.aggregate(countPipeline)
+      ]);
+
+      const total = countResult[0]?.total || 0;
+
+      // 为每个item添加图片路径
+      items.forEach(item => {
+        item.image_path = skuImageMap[item.sku_code] || '';
+      });
+
+      // 统计信息
+      const totalQuantity = items.reduce((sum, item) => sum + (item.stock_quantity || 0), 0);
+
+      res.json({
+        success: true,
+        data: {
+          location_code: finalLocationCode,
+          items: items || [],
+          pagination: {
+            page: pageNum,
+            page_size: pageSizeNum,
+            total_pages: Math.ceil(total / pageSizeNum),
+            total_items: total
+          },
+          summary: {
+            total_items: items.length,
+            total_quantity: totalQuantity
+          }
+        },
+        error_code: null,
+        error_message: null
+      });
+    } else {
+      // 查询指定库位，不分页
+      const items = await Inventory.aggregate(pipeline);
+
+      // 为每个item添加图片路径
+      items.forEach(item => {
+        item.image_path = skuImageMap[item.sku_code] || '';
+      });
+
+      // 统计信息
+      const totalQuantity = items.reduce((sum, item) => sum + (item.stock_quantity || 0), 0);
+
+      res.json({
+        success: true,
+        data: {
+          location_code: finalLocationCode,
+          items: items || [],
+          summary: {
+            total_items: items.length,
+            total_quantity: totalQuantity
+          }
+        },
+        error_code: null,
+        error_message: null
+      });
+    }
   } catch (err) {
-    res.status(500);
-    res.sendResponse({ success: false, data: null, error_code: 'INTERNAL_ERROR' });
+    console.error('获取指定库位库存失败:', err);
+    res.status(500).json({ 
+      success: false, 
+      data: null, 
+      error_code: 'INTERNAL_ERROR',
+      error_message: err.message
+    });
   }
 });
 
@@ -96,42 +171,49 @@ router.get('/location/:location_code', async (req, res) => {
 router.post('/adjust', auth, async (req, res) => {
   try {
     const {
-      product_id,
       location_code,
-      product_code,
       sku_code,
-      stock_quantity,
+      target_quantity,     // 必填：盘点目标数量（库存调整的唯一字段）
       batch_number,
       notes,
       operator_id,
-      is_urgent,
-      quantity
+      is_urgent
     } = req.body;
 
+    // === 严格字段校验：禁止使用非标准字段名 ===
+    const forbiddenFields = ['stock_quantity', 'quantity', 'qty'];
+    const usedForbiddenFields = forbiddenFields.filter(field => req.body[field] !== undefined);
+    if (usedForbiddenFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error_code: 'INVALID_FIELD_NAME',
+        error_message: `禁止使用字段: ${usedForbiddenFields.join(', ')}，请使用标准字段名 target_quantity`
+      });
+    }
+
+    const final_quantity = target_quantity;
+    
     // 验证必填字段
-    if (!location_code || !product_code || !sku_code || typeof stock_quantity !== 'number') {
+    if (!location_code || !sku_code || typeof final_quantity !== 'number') {
       return res.status(400).json({
         success: false,
         data: null,
         error_code: 'INVALID_PARAMETERS',
-        error_message: '缺少必要参数(location_code, product_code, sku_code, stock_quantity)'
+        error_message: '缺少必要参数(location_code, sku_code, target_quantity)'
       });
     }
 
+    // 从SKU编码解析商品编码
+    const product_code = sku_code.includes('-') ? sku_code.split('-')[0] : sku_code;
+    
     // 查找或创建 Inventory 文档
-    let invQuery = {};
-    if (product_id) invQuery.product_id = product_id;
-    if (product_code) invQuery.product_code = product_code;
-    if (!invQuery.product_id && !invQuery.product_code && sku_code && sku_code.includes('-')) {
-      invQuery.product_code = sku_code.split('-')[0];
-    }
+    let invQuery = { product_code };
     let inventory = await Inventory.findOne(invQuery);
     if (!inventory) {
       // 新建 Inventory 文档
       inventory = new Inventory({
-        product_id,
         product_code,
-        product_name: '',
+        product_name: product_code, // 默认使用商品编码作为名称
         locations: []
       });
     }
@@ -159,7 +241,7 @@ router.post('/adjust', auth, async (req, res) => {
 
     // 盘点直接覆盖库存为目标数量
     const previous_quantity = sku.stock_quantity;
-    const new_quantity = typeof quantity !== 'undefined' ? quantity : stock_quantity;
+    const new_quantity = final_quantity;
     if (new_quantity < 0) {
       return res.status(400).json({
         success: false,
@@ -188,6 +270,25 @@ router.post('/adjust', auth, async (req, res) => {
     // 保存更改
     await inventory.save();
 
+    // 计算SKU库存统计
+    let sku_location_quantity = 0;
+    let sku_total_quantity = 0;
+
+    // 查找当前SKU在当前库位的数量
+    const currentLocation = inventory.locations.find(l => l.location_code === location_code);
+    if (currentLocation) {
+      const currentSku = currentLocation.skus.find(s => s.sku_code === sku_code);
+      sku_location_quantity = currentSku ? currentSku.stock_quantity : 0;
+    }
+
+    // 计算该SKU在所有库位的总数量
+    inventory.locations.forEach(loc => {
+      const skuInLocation = loc.skus.find(s => s.sku_code === sku_code);
+      if (skuInLocation) {
+        sku_total_quantity += skuInLocation.stock_quantity;
+      }
+    });
+
     // 记录调整历史
     const adjustment = new InventoryAdjustment({
       location_code,
@@ -209,9 +310,12 @@ router.post('/adjust', auth, async (req, res) => {
         location_code,
         product_code,
         sku_code,
+        target_quantity: new_quantity,
         previous_quantity,
         adjusted_quantity: new_quantity - previous_quantity,
         current_quantity: new_quantity,
+        sku_location_quantity,
+        sku_total_quantity,
         batch_number,
         operator_id: operator_id || (req.user && req.user.id) || WMS_USER_ID,
         adjusted_at: adjustment.created_at,
@@ -277,245 +381,53 @@ router.get('/product-locations/:product_code', async (req, res) => {
   }
 });
 
+
 // === 新增：按商品聚合库存（颜色 → 尺码 → 库位） ===
 router.get('/by-product/:product_code', (req, res) => {
-  res.status(410).json({ success: false, error_code: 'API_DEPRECATED', error_message: '请改用 /api/inventory/by-product?code=<product_code>' });
+      res.status(410).json({ success: false, error_code: 'API_DEPRECATED', error_message: '请改用 /api/products?search=<product_code>' });
 });
 
-// === 新增：按库位聚合库存（库位 → 商品 → SKU） ===
-router.get('/by-location', async (req, res) => {
-  try {
-    // 1. 聚合 Inventory -> location_code 维度
-    const pipeline = [
-      { $unwind: "$locations" },
-      { $unwind: { path: "$locations.skus", preserveNullAndEmptyArrays: true } },
-      { $project: {
-          location_code: "$locations.location_code",
-          product_id: "$product_id",
-          product_code: 1,
-          product_name: 1,
-          sku_code: "$locations.skus.sku_code",
-          sku_color: { $ifNull: ["$locations.skus.sku_color", ""] },
-          sku_size:  { $ifNull: ["$locations.skus.sku_size",  ""] },
-          stock_quantity: {
-            $cond: [ { $ifNull: ["$locations.skus.sku_code", false] }, "$locations.skus.stock_quantity", "$locations.stock_quantity" ]
-          }
-        }
-      },
-      // 只保留库存>0 的条目
-      { $match: { stock_quantity: { $gt: 0 } } },
-      { $group: {
-          _id: "$location_code",
-          items: { $push: {
-            product_id: "$product_id",
-            product_code: "$product_code",
-            product_name: "$product_name",
-            sku_code: "$sku_code",
-            sku_color: "$sku_color",
-            sku_size: "$sku_size",
-            stock_quantity: "$stock_quantity"
-          } }
-        }
-      },
-      { $project: { _id: 0, location_code: "$_id", items: 1 } },
-      { $match: { "items.0": { $exists: true } } },
-      { $sort: { location_code: 1 } }
-    ];
 
-    const data = await Inventory.aggregate(pipeline);
 
-    res.json({ success: true, data, error_code: null, error_message: null });
-  } catch (err) {
-    res.status(500);
-    res.sendResponse({ success: false, data: null, error_code: 'INTERNAL_ERROR' });
-  }
-});
-
-// === 新增：按商品聚合全部库存（无参数，返回所有商品） ===
-router.get('/by-product', async (req, res) => {
-  try {
-    const { code: filterCode, page = 1, pageSize = 50 } = req.query;
-
-    const invQuery = filterCode ? { product_code: filterCode } : {};
-
-    const inventoryFiltered = await Inventory.find(
-      invQuery,
-      {
-        product_code: 1,
-        product_name: 1,
-        locations: 1
-      }
-    ).lean();
-
-    if (!inventoryFiltered || inventoryFiltered.length === 0) {
-      return res.json({ success: true, data: [], pagination: { page: parseInt(page), pageSize: parseInt(pageSize), total: 0 }, error_code: null, error_message: null });
-    }
-
-    const productMap = {}; // { product_code: { product_code, colors: {...} } }
-
-    inventoryFiltered.forEach(inv => {
-      const productCode = inv.product_code || inv.code;
-      if (!productMap[productCode]) {
-        productMap[productCode] = { product_code: productCode, colors: {} };
-      }
-      const productObj = productMap[productCode];
-
-      (inv.locations || []).forEach(loc => {
-        const locationCode = loc.location_code || loc.locationCode;
-        (loc.skus || []).forEach(sku => {
-          const skuCode = sku.sku_code || sku.code;
-          const color = sku.sku_color || sku.color || '默认颜色';
-          const size  = sku.sku_size  || sku.size  || '默认尺码';
-          if (!productObj.colors[color]) {
-            productObj.colors[color] = { color, image_path: sku.image_path || '', sizes: {} };
-          }
-          const colorObj = productObj.colors[color];
-          if (!colorObj.sizes[size]) {
-            colorObj.sizes[size] = { sku_size: size, sku_code: skuCode, total_quantity: 0, locations: [] };
-          }
-          const sizeObj = colorObj.sizes[size];
-          const qty = sku.stock_quantity || sku.quantity || 0;
-          sizeObj.total_quantity += qty;
-          if (qty > 0) {
-            sizeObj.locations.push({ location_code: locationCode, stock_quantity: qty });
-          }
-        });
-      });
-    });
-
-    /* === 用 products.skus 补全无库存SKU === */
-    const allProducts = await Product.find(filterCode ? { product_code: filterCode } : {}, { product_code: 1, skus: 1, product_name:1, unit:1, image_path:1, has_sku:1, category:1 });
-    const productDetailMap = {};
-    allProducts.forEach(pdoc=>{productDetailMap[pdoc.product_code]=pdoc;});
-
-    // 补全无库存SKU详情（必须在生成 dataArr 之前）
-    allProducts.forEach(pdoc => {
-      const pcode = pdoc.product_code;
-      if (!productMap[pcode]) {
-        productMap[pcode] = { product_code: pcode, colors: {} };
-      }
-      const pObj = productMap[pcode];
-      (pdoc.skus || []).forEach(s => {
-        const sCode = s.sku_code;
-        const sColor = s.sku_color || s.color || (sCode.split('-')[1] || '默认颜色');
-        const sSize  = s.sku_size  || s.size  || (sCode.split('-')[2] || '默认尺码');
-        if (!pObj.colors[sColor]) {
-          pObj.colors[sColor] = { color: sColor, image_path: s.image_path || '', sizes: {} };
-        } else if (!pObj.colors[sColor].image_path && s.image_path) {
-          pObj.colors[sColor].image_path = s.image_path;
-        }
-        if (!pObj.colors[sColor].sizes[sSize]) {
-          pObj.colors[sColor].sizes[sSize] = { sku_size: sSize, sku_code: sCode, total_quantity: 0, locations: [] };
-        }
-      });
-    });
-
-    let dataArr = Object.values(productMap).map(p => {
-      const colorsArr = Object.values(p.colors).map(cg => {
-        const sizesArr = Object.values(cg.sizes);
-        const colTotal = sizesArr.reduce((t, s) => t + (s.total_quantity || 0), 0);
-        const locSet = new Set();
-        sizesArr.forEach(sz => {
-          (sz.locations || []).forEach(l => locSet.add(l.location_code));
-        });
-        const locationCount = locSet.size;
-        return {
-          ...cg,
-          sizes: sizesArr,
-          total_quantity: colTotal,
-          sku_count: sizesArr.length,
-          location_count: locationCount
-        };
-      });
-      const prodTotal = colorsArr.reduce((t, c) => t + c.total_quantity, 0);
-      const skuCount = colorsArr.reduce((t, c) => t + c.sku_count, 0);
-      const locSet = new Set();
-      colorsArr.forEach(col => {
-        col.sizes.forEach(sz => {
-          (sz.locations || []).forEach(l => locSet.add(l.location_code));
-        });
-      });
-      const locationCount = locSet.size;
-      const det = productDetailMap[p.product_code] || {};
-      // 构建扁平 sku 列表，便于前端复用旧逻辑
-      const skusFlat = [];
-      colorsArr.forEach(cg => {
-        cg.sizes.forEach(sz => {
-          skusFlat.push({
-            sku_code: sz.sku_code,
-            sku_color: cg.color,
-            sku_size: sz.sku_size,
-            image_path: cg.image_path || ''
-          });
-        });
-      });
-      return {
-        product_id: det._id,
-        product_code: p.product_code,
-        product_name: det.product_name || '',
-        unit: det.unit || '',
-        image_path: det.image_path || '',
-        has_sku: det.has_sku ?? true,
-        total_quantity: prodTotal,
-        sku_count: skuCount,
-        location_count: locationCount,
-        color_count: colorsArr.length,
-        colors: colorsArr,
-        skus: skusFlat
-      };
-    });
-
-    // 分页处理
-    const total = dataArr.length;
-    const pageInt = parseInt(page);
-    const pageSizeInt = parseInt(pageSize);
-    const startIdx = (pageInt - 1) * pageSizeInt;
-    const pagedData = dataArr.slice(startIdx, startIdx + pageSizeInt);
-
-    res.json({ success: true, data: pagedData, pagination: { page: pageInt, pageSize: pageSizeInt, total }, error_code: null, error_message: null });
-  } catch (err) {
-    console.error('聚合全部商品库存失败:', err);
-    res.status(500).json({ success: false, data: null, error_code: 'GROUP_ALL_PRODUCTS_FAILED', error_message: '服务器错误，无法聚合库存' });
-  }
-});
+// === 🗑️ /inventory/by-product 接口已删除 ===
+// 该接口功能已完全整合到 /products 接口中，前端代码已全部更新
 
 // === 新增：库存转移接口 ===
 router.post('/transfer', auth, async (req, res) => {
   try {
     const {
       sku_code,
-      product_id,
-      product_code,
-      from_location_id,
       from_location_code,
-      to_location_id,
       to_location_code,
-      stock_quantity,
+      transfer_quantity,    // 必填：转移数量（库存转移的唯一字段）
       batch_number,
       notes,
-      operator_id,
-      sku_color,
-      sku_size
+      operator_id
     } = req.body;
 
+    // === 严格字段校验：禁止使用非标准字段名 ===
+    const forbiddenFields = ['stock_quantity', 'quantity', 'qty'];
+    const usedForbiddenFields = forbiddenFields.filter(field => req.body[field] !== undefined);
+    if (usedForbiddenFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error_code: 'INVALID_FIELD_NAME',
+        error_message: `禁止使用字段: ${usedForbiddenFields.join(', ')}，请使用标准字段名 transfer_quantity`
+      });
+    }
+
+    const final_quantity = transfer_quantity;
+    
     // 参数校验
-    if (!sku_code || !stock_quantity || (!from_location_id && !from_location_code) || (!to_location_id && !to_location_code) || !operator_id) {
+    if (!sku_code || !final_quantity || !from_location_code || !to_location_code || !operator_id) {
       return res.status(400).json({
         success: false,
         data: null,
         error_code: 'INVALID_PARAMETERS',
-        error_message: '缺少必要参数(sku_code, stock_quantity, from_location, to_location, operator_id)'
+        error_message: '缺少必要参数(sku_code, transfer_quantity, from_location_code, to_location_code, operator_id)'
       });
     }
-    if (from_location_id === to_location_id && from_location_id) {
-      return res.status(400).json({
-        success: false,
-        data: null,
-        error_code: 'INVALID_PARAMETERS',
-        error_message: '源库位和目标库位不能相同'
-      });
-    }
-    if (from_location_code === to_location_code && from_location_code) {
+    if (from_location_code === to_location_code) {
       return res.status(400).json({
         success: false,
         data: null,
@@ -524,16 +436,11 @@ router.post('/transfer', auth, async (req, res) => {
       });
     }
 
-    // 先查 Inventory 文档（按 product_code 或 product_id）
-    let invQuery = {};
-    if (product_id) invQuery.product_id = product_id;
-    if (product_code) invQuery.product_code = product_code;
-    if (!invQuery.product_id && !invQuery.product_code) {
-      // 尝试通过 sku_code 前缀推断 product_code
-      if (sku_code && sku_code.includes('-')) {
-        invQuery.product_code = sku_code.split('-')[0];
-      }
-    }
+    // 从SKU编码解析商品编码
+    const product_code = sku_code.includes('-') ? sku_code.split('-')[0] : sku_code;
+    
+    // 查找 Inventory 文档
+    let invQuery = { product_code };
     let inventory = await Inventory.findOne(invQuery);
     if (!inventory) {
       return res.status(404).json({
@@ -545,10 +452,7 @@ router.post('/transfer', auth, async (req, res) => {
     }
 
     // 查找源库位
-    let fromLoc = inventory.locations.find(loc =>
-      (from_location_id && loc.location_id && loc.location_id.toString() === from_location_id) ||
-      (from_location_code && loc.location_code === from_location_code)
-    );
+    let fromLoc = inventory.locations.find(loc => loc.location_code === from_location_code);
     if (!fromLoc) {
       return res.status(404).json({
         success: false,
@@ -558,14 +462,10 @@ router.post('/transfer', auth, async (req, res) => {
       });
     }
     // 查找目标库位
-    let toLoc = inventory.locations.find(loc =>
-      (to_location_id && loc.location_id && loc.location_id.toString() === to_location_id) ||
-      (to_location_code && loc.location_code === to_location_code)
-    );
+    let toLoc = inventory.locations.find(loc => loc.location_code === to_location_code);
     if (!toLoc) {
       // 目标库位不存在则新建
       toLoc = {
-        location_id: to_location_id || undefined,
         location_code: to_location_code,
         stock_quantity: 0,
         skus: []
@@ -583,7 +483,7 @@ router.post('/transfer', auth, async (req, res) => {
         error_message: '源库位无此SKU'
       });
     }
-    if (fromSku.stock_quantity < stock_quantity) {
+    if (fromSku.stock_quantity < final_quantity) {
       return res.status(400).json({
         success: false,
         data: null,
@@ -591,7 +491,7 @@ router.post('/transfer', auth, async (req, res) => {
         error_message: '源库位库存不足',
         details: { 
           available_quantity: fromSku.stock_quantity,
-          requested_quantity: stock_quantity,
+          requested_quantity: final_quantity,
           sku_code,
           location_code: from_location_code
         }
@@ -611,8 +511,8 @@ router.post('/transfer', auth, async (req, res) => {
     }
 
     // 扣减源库位，增加目标库位
-    fromSku.stock_quantity -= stock_quantity;
-    toSku.stock_quantity += stock_quantity;
+    fromSku.stock_quantity -= final_quantity;
+    toSku.stock_quantity += final_quantity;
 
     // 更新源库位和目标库位的总库存
     fromLoc.stock_quantity = fromLoc.skus.reduce((total, s) => total + (s.stock_quantity || 0), 0);
@@ -629,16 +529,28 @@ router.post('/transfer', auth, async (req, res) => {
     // 保存所有更改
     await inventory.save();
 
+    // 计算SKU库存统计
+    let sku_location_quantity = toSku.stock_quantity;  // 转移后目标库位的数量
+    let sku_total_quantity = 0;
+
+    // 计算该SKU在所有库位的总数量
+    inventory.locations.forEach(loc => {
+      const skuInLocation = loc.skus.find(s => s.sku_code === sku_code);
+      if (skuInLocation) {
+        sku_total_quantity += skuInLocation.stock_quantity;
+      }
+    });
+
     // 记录转移历史
     const transfer = new InventoryAdjustment({
       location_code: from_location_code,
       to_location_code: to_location_code,
-      product_code: inventory.product_code,
+      product_code: product_code,
       sku_code,
       sku_color: fromSku.sku_color || fromSku.color,
       sku_size: fromSku.sku_size || fromSku.size,
-      previous_quantity: fromSku.stock_quantity + stock_quantity,
-      adjusted_quantity: -stock_quantity,
+      previous_quantity: fromSku.stock_quantity + final_quantity,
+      adjusted_quantity: -final_quantity,
       current_quantity: fromSku.stock_quantity,
       batch_number,
       operator_id: operator_id,
@@ -650,14 +562,16 @@ router.post('/transfer', auth, async (req, res) => {
     res.json({
       success: true,
       data: {
+        product_code,
         sku_code,
-        from_location: from_location_code,
-        to_location: to_location_code,
-        stock_quantity,
-        from_current_quantity: fromSku.stock_quantity,
-        to_current_quantity: toSku.stock_quantity,
+        from_location_code,
+        to_location_code,
+        transfer_quantity: final_quantity,
+        sku_location_quantity,
+        sku_total_quantity,
         batch_number,
         operator_id: operator_id,
+        transfer_at: transfer.created_at,
         notes
       },
       error_code: null,

@@ -181,6 +181,11 @@ app.post('/api/clear-scan-results', (req, res) => {
   });
 });
 
+// API文档路由 - 在所有其他API路由之前
+app.get('/api', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'api-docs-complete.html'));
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productsRoutes);
 app.use('/api/locations', locationsRoutes);
@@ -190,23 +195,30 @@ app.use('/api/outbound', outboundRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/sku', skuExternalCodesRoutes);
 
-// 这里用环境变量读取 MongoDB 连接字符串
-mongoose.connect(process.env.MONGODB_URI, {
+// 这里用环境变量读取 MongoDB 连接字符串，如果没有则使用文档中的认证信息
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://admin_user:your_strong_password@localhost:8612/warehouse_db?authSource=admin';
+console.log('尝试连接MongoDB:', MONGODB_URI.replace(/\/\/.*@/, '//<credentials>@')); // 隐藏密码
+
+mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
   .then(async () => {
-    console.log('MongoDB connected');
+    console.log('✅ MongoDB connected successfully');
     // 直接在这里创建管理员用户
     const user = await User.findOne({ user_name: 'wms' });
     if (!user) {
       await User.create({ user_name: 'wms', password: '123456', role: 'admin' });
-      console.log('管理员用户已创建：wms/123456');
+      console.log('✅ 管理员用户已创建：wms/123456');
     } else {
-      console.log('管理员用户已存在');
+      console.log('✅ 管理员用户已存在');
     }
   })
-  .catch(err => console.error('MongoDB connection error:', err));
+  .catch(err => {
+    console.error('❌ MongoDB connection error:', err);
+    console.log('⚠️  服务器将继续运行，但数据库功能不可用');
+    console.log('💡 要解决此问题，请确保MongoDB在端口27017上运行');
+  });
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

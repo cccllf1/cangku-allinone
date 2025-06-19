@@ -10,127 +10,95 @@ router.post('/', auth, async (req, res) => {
   console.log('入库接收数据:', req.body);
 
   try {
-    // 提取参数，支持多种参数格式
+    // 提取参数，新的必填参数设计
     const { 
+      sku_code,           // 必填：SKU编码
+      location_code,      // 必填：库位编码  
+      inbound_quantity,   // 必填：入库数量
+      batch_number,       // 可选：批次号
+      operator_id,        // 可选：操作员ID
+      notes,              // 可选：备注
+      is_urgent,          // 可选：是否紧急
+      // 保留兼容性参数（但不再使用）
       product_id, 
-      product_code, 
-      location_id, 
-      location_code,
-      stock_quantity,
-      batch_number,
-      notes,
-      sku_code,
+      product_code,
+      location_id,
       sku_color,
       sku_size
     } = req.body;
 
-    // === 严格字段校验：禁止 camelCase 及 quantity ===
+    // === 严格字段校验：禁止 camelCase ===
     if (Object.keys(req.body).some(k => /[A-Z]/.test(k))) {
-      return res.status(400).json({ message: '请求参数必须使用 snake_case 命名' });
-    }
-
-    // 验证必要参数
-    const qtyProvided = (stock_quantity !== undefined && stock_quantity !== null);
-    if (!product_id && !product_code) {
       return res.status(400).json({ 
-        error: '缺少必要参数', 
-        message: 'product_id或product_code字段为必填' 
+        success: false,
+        error_code: 'INVALID_NAMING',
+        error_message: '请求参数必须使用 snake_case 命名' 
       });
     }
 
-    // 找到商品信息
-    let product = null;
-    if (product_id) {
-      product = await Product.findById(product_id);
-    } else {
-      product = await Product.findOne({ product_code: product_code });
+    // 验证必要参数（新的三必填设计）
+    if (!sku_code) {
+      return res.status(400).json({ 
+        success: false,
+        error_code: 'MISSING_SKU_CODE',
+        error_message: 'sku_code字段为必填，必须提供SKU编码' 
+      });
     }
+
+    if (!location_code) {
+      return res.status(400).json({ 
+        success: false,
+        error_code: 'MISSING_LOCATION_CODE',
+        error_message: 'location_code字段为必填，必须提供库位编码'
+      });
+    }
+
+    if (!inbound_quantity || typeof inbound_quantity !== 'number' || inbound_quantity <= 0) {
+      return res.status(400).json({ 
+        success: false,
+        error_code: 'INVALID_QUANTITY',
+        error_message: 'inbound_quantity必须是大于0的数字'
+      });
+    }
+
+    // 从SKU编码解析商品信息
+    let product = null;
+    let baseProductCode = sku_code;
+    
+    // 解析SKU编码获取基础商品编码
+    if (sku_code.includes('-')) {
+      baseProductCode = sku_code.split('-')[0];
+    }
+
+    // 查找商品
+    product = await Product.findOne({ product_code: baseProductCode });
 
     if (!product) {
-      // 如果商品不存在且有编码，自动创建
-      if (product_code) {
-        // 检查SKU编码
-        let baseCode = product_code;
-        if (product_code.includes('-')) {
-          baseCode = product_code.split('-')[0];
-          // 如果未设置SKU编码，则使用完整编码作为SKU编码
-          if (!sku_code) {
-            req.body.sku_code = product_code;
-          }
-        }
-        
-        // 检查是否存在于库存系统中
-        const inventoryItem = await Inventory.findOne({ product_code: baseCode });
-        if (inventoryItem) {
-          // 如果库存中有但商品表中没有，尝试查找商品ID
-          product = await Product.findById(inventoryItem.product_id);
-          
-          // 如果仍然没找到，根据库存数据创建商品
-          if (!product) {
-            product = await Product.create({
-              code: baseCode,
-              name: inventoryItem.product_name || baseCode,
-              unit: inventoryItem.unit || '件',
-              has_sku: true,
-              skus: []
-            });
-            console.log('根据库存数据创建商品:', product);
-          }
-        } else {
-          // 完全新商品，创建
-        product = await Product.create({
-            code: baseCode,
-            name: baseCode,
-            unit: '件',
-            has_sku: true,
-            skus: []
-        });
-          console.log('自动创建新商品:', product);
-        }
-      } else {
-        return res.status(404).json({ 
-          error: '商品不存在', 
-          message: '找不到指定的商品' 
-        });
-      }
+      // 商品不存在，返回错误
+      return res.status(404).json({
+        success: false,
+        error_code: 'PRODUCT_NOT_FOUND',
+        error_message: `商品不存在，请先创建商品：${baseProductCode}`
+      });
     }
 
-    // 找到库位信息
-    let location = null;
-    if (location_id) {
-      location = await Location.findById(location_id);
-    } else if (location_code) {
-      // 按编码查找
-      const final_location_code = location_code;
-      location = await Location.findOne({ location_code: final_location_code });
-      
-      // 如果库位不存在且有编码，自动创建
-      if (!location) {
-        const codeVal = location_code;
-        location = await Location.create({
-          location_code: codeVal,
-          location_name: codeVal === '无货位' ? '无货位' : codeVal  // 特殊处理无货位的名称
-        });
-        console.log('自动创建库位:', location);
-      }
-    } else {
-      // 使用默认库位
-      location = await Location.findOne({ location_code: 'DEFAULT' });
-      
-      // 如果默认库位不存在，创建它
-      if (!location) {
-        location = await Location.create({
-          location_code: 'DEFAULT',
-          location_name: '默认库位'
-        });
-        console.log('创建默认库位:', location);
-      }
+    // 找到库位信息（使用必填的location_code）
+    let location = await Location.findOne({ location_code: location_code });
+    
+    // 如果库位不存在，自动创建
+    if (!location) {
+      location = await Location.create({
+        location_code: location_code,
+        location_name: location_code === '无货位' ? '无货位' : location_code
+      });
+      console.log('自动创建库位:', location);
     }
 
     if (!location) {
       return res.status(404).json({ 
-        error: '库位不存在', 
-        message: '找不到指定的库位' 
+        success: false,
+        error_code: 'LOCATION_NOT_FOUND',
+        error_message: '找不到指定的库位'
       });
     }
 
@@ -226,10 +194,10 @@ router.post('/', auth, async (req, res) => {
     }
     
     // 处理数量，确保是数字
-    const final_stock_quantity = stock_quantity;
-    const numericQuantity = Number(final_stock_quantity) || 1;
+    const final_inbound_quantity = inbound_quantity;
+    const numericQuantity = Number(final_inbound_quantity) || 1;
 
-    const prodCode = product.product_code || product.code;
+    const prodCode = product.product_code;
 
     if (inventory) {
       // 更新现有库存
@@ -374,20 +342,48 @@ router.post('/', auth, async (req, res) => {
       console.log('创建库存成功:', inventory);
     }
 
+    // 计算SKU在当前库位的数量
+    let sku_location_quantity = 0;
+    let sku_total_quantity = 0;
+    
+    if (skuInfo) {
+      // 找到当前库位的库存记录
+      const currentLocation = inventory.locations.find(
+        loc => loc.location_code === location.location_code
+      );
+      
+      if (currentLocation && currentLocation.skus) {
+        const currentSku = currentLocation.skus.find(
+          s => s.sku_code === skuInfo.sku_code
+        );
+        if (currentSku) {
+          sku_location_quantity = currentSku.stock_quantity;
+        }
+      }
+      
+      // 计算SKU在所有库位的总数量
+      inventory.locations.forEach(loc => {
+        if (loc.skus) {
+          const sku = loc.skus.find(s => s.sku_code === skuInfo.sku_code);
+          if (sku) {
+            sku_total_quantity += sku.stock_quantity;
+          }
+        }
+      });
+    }
+
     res.status(201).json({
       success: true,
       inventory: {
-        id: inventory._id,
-        product_id: product._id,
         product_code: prodCode,
-        product_name: product.name,
-        location_id: location._id,
+        product_name: product.product_name || product.name,
         location_code: location.location_code,
-        stock_quantity: numericQuantity,
-        total: inventory.stock_quantity,
+        inbound_quantity: numericQuantity,
         sku_code: skuInfo ? skuInfo.sku_code : null,
         sku_color: skuInfo ? skuInfo.color : null,
-        sku_size: skuInfo ? skuInfo.size : null
+        sku_size: skuInfo ? skuInfo.size : null,
+        sku_location_quantity: sku_location_quantity,
+        sku_total_quantity: sku_total_quantity
       }
     });
   } catch (error) {
