@@ -1327,31 +1327,23 @@ router.delete('/:id', auth, async (req, res) => {
       });
     }
 
-    // 检查是否有库存
-    const inventory = await Inventory.findOne({ product_id: productId });
-    if (inventory && inventory.stock_quantity > 0) {
-      return res.status(400).json({
-        success: false,
-        data: {
-          product_id: productId,
-          stock_quantity: inventory.stock_quantity
-        },
-        error_code: 'OPERATION_NOT_ALLOWED',
-        error_message: '商品还有库存，不能删除'
-      });
-    }
+    // 统计并删除库存（即使有库存也执行删除）
+    const inventoryList = await Inventory.find({ product_id: productId });
+    const totalStock = inventoryList.reduce((sum, inv) => sum + (inv.stock_quantity || 0), 0);
 
-    // 删除商品
+    const inventoryDeletionResult = await Inventory.deleteMany({ product_id: productId });
+
+    // 删除商品本身
     await Product.findByIdAndDelete(productId);
 
-    // 删除相关的库存记录
-    const inventoryDeletionResult = await Inventory.deleteMany({ product_id: productId });
-    console.log(`已删除产品 ${product.product_code} (ID: ${productId}) 的 ${inventoryDeletionResult.deletedCount} 条库存记录。`);
+    console.log(`已删除产品 ${product.product_code} (ID: ${productId}) 及其 ${inventoryDeletionResult.deletedCount} 条库存记录（原总库存 ${totalStock} 件）。`);
 
     res.json({
       success: true,
       data: {
         product_id: productId,
+        deleted_inventory_count: inventoryDeletionResult.deletedCount,
+        deleted_stock_quantity: totalStock,
         operated_at: new Date().toISOString(),
         operator_id,
         is_urgent: is_urgent || false,

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Button, Input, message, List, Form, Select, Modal, Typography } from 'antd';
+import { showResultModal } from '../components/ResultModal';
 const { Text } = Typography;
 import { SyncOutlined } from '@ant-design/icons';
 import * as api from '../api/request';
@@ -456,15 +457,38 @@ const MobileInbound = () => {
           notes: '移动端入库操作'
         };
         
-        await api.post('/inbound/', inboundData);
+        const resp = await api.post('/inbound/', inboundData);
+
+        const inventoryObj = resp.data?.inventory || resp.data?.data;
+        if (inventoryObj) {
+          const { sku_location_quantity, sku_total_quantity, inbound_quantity, sku_code } = inventoryObj;
+          showResultModal({
+            success: true,
+            operation: '入库',
+            sku_code: sku_code || item.sku_code,
+            operation_quantity: inbound_quantity || Number(item.stock_quantity),
+            sku_location_quantity,
+            sku_total_quantity,
+          });
+        } else {
+          showResultModal({
+            success: true,
+            operation: '入库',
+            sku_code: item.sku_code,
+            operation_quantity: Number(item.stock_quantity),
+          });
+        }
       }
-      
-      message.success('入库成功');
       setTableData([]);
     } catch (e) {
       console.error('入库失败:', e);
       const errorMsg = e.response?.data?.error_message || e.response?.data?.message || e.message || '未知错误';
-      message.error('入库失败: ' + errorMsg);
+      showResultModal({
+        success: false,
+        operation: '入库',
+        sku_code: tableData.length === 1 ? tableData[0]?.sku_code : '',
+        error_message: errorMsg,
+      });
     } finally {
       setLoading(false);
     }

@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import MobileNavBar from '../components/MobileNavBar';
 import InboundItemCard from '../components/InboundItemCard';
 import { getCache, setCache } from '../utils/cacheUtils';
+import { showResultModal } from '../components/ResultModal';
 
 const MobileOutbound = () => {
   const [locationOptions, setLocationOptions] = useState([]);
@@ -247,16 +248,39 @@ const MobileOutbound = () => {
           location_code: item.location_code,
           outbound_quantity: Number(item.stock_quantity),
           operator_id: currentUser?.user_id,
-          notes: '移动端出库操作',
-          batch_number: item.batch_number || '',
-          is_urgent: false
+          notes: '移动端出库操作'
         };
-        await api.post('/outbound/', payload);
+        const resp = await api.post('/outbound/', payload);
+
+        const inventoryObj = resp.data?.inventory || resp.data?.data;
+        if (inventoryObj) {
+          const { sku_location_quantity, sku_total_quantity, outbound_quantity, sku_code } = inventoryObj;
+          showResultModal({
+            success: true,
+            operation: '出库',
+            sku_code: sku_code || item.sku_code,
+            operation_quantity: outbound_quantity || Number(item.stock_quantity),
+            sku_location_quantity,
+            sku_total_quantity,
+          });
+        } else {
+          showResultModal({
+            success: true,
+            operation: '出库',
+            sku_code: item.sku_code,
+            operation_quantity: Number(item.stock_quantity),
+          });
+        }
       }
-      message.success('出库成功');
+
       setTableData([]);
     } catch(err) {
-      message.error('出库失败: '+(err.response?.data?.message||err.message));
+      showResultModal({
+        success: false,
+        operation: '出库',
+        sku_code: tableData.length === 1 ? tableData[0]?.sku_code : '',
+        error_message: err.response?.data?.error_message || err.response?.data?.message || err.message,
+      });
     } finally { setLoading(false); }
   };
 

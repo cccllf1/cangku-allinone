@@ -15,6 +15,7 @@ import theme, { getStyle } from '../styles/theme';
 import { getFullImageUrl } from '../utils/imageUtils';
 import { Popup as MobilePopup, Picker as MobilePicker } from 'antd-mobile';
 import './MobileLocationInventory.css';
+import { showResultModal } from '../components/ResultModal';
 
 const { Option } = Select;
 
@@ -600,15 +601,34 @@ const MobileLocationInventory = () => {
         is_urgent: false
       };
       const response = await api.post('/inventory/adjust', requestData);
-      if (response.data && response.data.inventory) {
-        const { sku_location_quantity, sku_total_quantity } = response.data.inventory;
-        console.log('库存调整完成，最新库存:', { sku_location_quantity, sku_total_quantity });
+      const inventoryObj = response.data?.inventory || response.data?.data;
+      if (inventoryObj) {
+        const { sku_location_quantity, sku_total_quantity } = inventoryObj;
+        showResultModal({
+          success: true,
+          operation: '盘点',
+          sku_code: editingItem?.sku_code,
+          operation_quantity: editQuantity,
+          sku_location_quantity,
+          sku_total_quantity,
+        });
+      } else {
+        showResultModal({
+          success: true,
+          operation: '盘点',
+          sku_code: editingItem?.sku_code,
+          operation_quantity: editQuantity,
+        });
       }
-      message.success('数量已更新');
       setEditMode(false);
       setEditingItem(null);
     } catch (error) {
-      message.error('保存失败: ' + (error.response?.data?.message || error.message));
+      showResultModal({
+        success: false,
+        operation: '盘点',
+        sku_code: editingItem?.sku_code,
+        error_message: error.response?.data?.error_message || error.response?.data?.message || error.message,
+      });
     } finally {
       setLoading(false);
     }
@@ -651,14 +671,35 @@ const MobileLocationInventory = () => {
         is_urgent: false
       };
       const response = await api.post('/inventory/transfer', requestData);
-      message.success('转移成功');
-      if (response.data && response.data.inventory) {
-        const { sku_location_quantity, sku_total_quantity } = response.data.inventory;
-        console.log('库存转移完成，最新库存:', { sku_location_quantity, sku_total_quantity });
+
+      const inventoryObj = response.data?.inventory || response.data?.data;
+      if (inventoryObj) {
+        const { sku_location_quantity, sku_total_quantity, transfer_quantity, sku_code } = inventoryObj;
+        showResultModal({
+          success: true,
+          operation: '转移',
+          sku_code: sku_code || editingItem.sku_code,
+          operation_quantity: transfer_quantity || Number(transferQuantity),
+          sku_location_quantity,
+          sku_total_quantity,
+        });
+      } else {
+        showResultModal({
+          success: true,
+          operation: '转移',
+          sku_code: editingItem.sku_code,
+          operation_quantity: Number(transferQuantity),
+        });
       }
+
       setTransferVisible(false);
     } catch (error) {
-      message.error('转移失败: ' + (error.response?.data?.message || error.message));
+      showResultModal({
+        success: false,
+        operation: '转移',
+        sku_code: editingItem?.sku_code,
+        error_message: error.response?.data?.error_message || error.response?.data?.message || error.message,
+      });
     } finally {
       setLoading(false);
     }
@@ -1495,13 +1536,31 @@ const MobileLocationInventory = () => {
       }
       const response = await api.post(endpoint, requestData);
       setInoutVisible(false);
-      message.success(`${inoutType === 'in' ? '入库' : '出库'}成功`);
       if (response.data && response.data.inventory) {
         const { sku_location_quantity, sku_total_quantity } = response.data.inventory;
-        console.log(`${inoutType === 'in' ? '入库' : '出库'}完成，最新库存:`, { sku_location_quantity, sku_total_quantity });
+        showResultModal({
+          success: true,
+          operation: inoutType === 'in' ? '入库' : '出库',
+          sku_code: inoutItem?.sku_code,
+          operation_quantity: inoutQuantity,
+          sku_location_quantity,
+          sku_total_quantity,
+        });
+      } else {
+        showResultModal({
+          success: true,
+          operation: inoutType === 'in' ? '入库' : '出库',
+          sku_code: inoutItem?.sku_code,
+          operation_quantity: inoutQuantity,
+        });
       }
     } catch (error) {
-      message.error(`${inoutType === 'in' ? '入库' : '出库'}失败: ` + (error.response?.data?.message || error.message));
+      showResultModal({
+        success: false,
+        operation: inoutType === 'in' ? '入库' : '出库',
+        sku_code: inoutItem?.sku_code,
+        error_message: error.response?.data?.error_message || error.response?.data?.message || error.message,
+      });
     } finally {
       setLoading(false);
     }
@@ -1928,12 +1987,8 @@ const MobileLocationInventory = () => {
                     </div>
                   );
                 })}
-              {/* 上架按钮放在商品列表下方 */}
-              <div style={{ textAlign: 'center', marginTop: 16 }}>
-                <Button type="primary" icon={<PlusOutlined />} onClick={showAddProductModal}>
-                  上架
-                </Button>
-              </div>
+              {/* 原 "上架" 按钮已在 Modal footer 提供，避免重复，此处移除 */}
+              <></>
             </div>
           ) : (
             <Empty description="该货位暂无库存" />

@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Button, Input, message, List, Card, Space, Modal, Badge, Tag, Form, Select, InputNumber } from 'antd';
-import { PlusOutlined, EditOutlined, MinusOutlined, SearchOutlined, ScanOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, MinusOutlined, SearchOutlined, ScanOutlined, RightOutlined } from '@ant-design/icons';
 import api from '../api/auth';
 import MobileNavBar from '../components/MobileNavBar';
 import { getFullImageUrl } from '../utils/imageUtils';
+import { showResultModal } from '../components/ResultModal';
 
 // 颜色背景辅助
 const getColorBackground = (colorName) => {
@@ -37,6 +38,19 @@ const MobileInventory = () => {
   const imgListRefs = useRef({});
   const [sortKey, setSortKey] = useState('');
   const [sortOrder, setSortOrder] = useState('desc'); // desc/asc
+
+  // === 尺码排序辅助函数 ===
+  const sizePriority = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL', '6XL', '7XL', '8XL'];
+  const getSizeRank = (sizeName) => {
+    if (!sizeName) return 9999;
+    const upper = String(sizeName).toUpperCase();
+    const idx = sizePriority.indexOf(upper);
+    if (idx !== -1) return idx;
+    // 如果包含数字，如 28、30 之类，则按数字大小排序
+    const numMatch = upper.match(/\d+/);
+    if (numMatch) return 100 + parseInt(numMatch[0], 10);
+    return 9999;
+  };
 
   useEffect(() => {
     loadInventory();
@@ -217,14 +231,27 @@ const MobileInventory = () => {
       console.log('=== 仓库操作成功 ===');
       console.log('响应数据:', JSON.stringify(response.data, null, 2));
       
-      message.success(`${warehouseActionType === 'inbound' ? '入库' : warehouseActionType === 'outbound' ? '出库' : '盘点'}成功`);
-      setWarehouseActionVisible(false);
-
-      // 显示操作结果信息
-      if (response.data && response.data.inventory) {
-        const { sku_location_quantity, sku_total_quantity, inbound_quantity, outbound_quantity, target_quantity } = response.data.inventory;
-        const operationQuantity = inbound_quantity || outbound_quantity || target_quantity || 0;
-        console.log(`操作完成 - 操作数量: ${operationQuantity}, 库位库存: ${sku_location_quantity}, SKU总库存: ${sku_total_quantity}`);
+      // === 弹窗结果 ===
+      const inventoryObj = response.data?.inventory || response.data?.data;
+      const opLabel = warehouseActionType === 'inbound' ? '入库' : warehouseActionType === 'outbound' ? '出库' : '盘点';
+      if (inventoryObj) {
+        const { sku_location_quantity, sku_total_quantity, inbound_quantity, outbound_quantity, target_quantity, sku_code } = inventoryObj;
+        const operation_quantity = inbound_quantity || outbound_quantity || target_quantity || Number(quantity);
+        showResultModal({
+          success: true,
+          operation: opLabel,
+          sku_code: sku_code || selectedSku.sku_code,
+          operation_quantity,
+          sku_location_quantity,
+          sku_total_quantity,
+        });
+      } else {
+        showResultModal({
+          success: true,
+          operation: opLabel,
+          sku_code: selectedSku.sku_code,
+          operation_quantity: Number(quantity),
+        });
       }
 
       // 先刷新主列表数据
@@ -266,16 +293,15 @@ const MobileInventory = () => {
       console.error('=== 仓库操作失败 ===');
       console.error('错误详情:', error);
       
-      let errorMessage = '操作失败';
-      if (error.response?.data?.error_message) {
-        errorMessage = error.response.data.error_message;
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      message.error(errorMessage);
+      let errorMessage = error.response?.data?.error_message || error.response?.data?.message || error.message || '操作失败';
+
+      const opLabel = warehouseActionType === 'inbound' ? '入库' : warehouseActionType === 'outbound' ? '出库' : '盘点';
+      showResultModal({
+        success: false,
+        operation: opLabel,
+        sku_code: selectedSku?.sku_code,
+        error_message: errorMessage,
+      });
     } finally {
       setLoading(false);
     }
@@ -573,20 +599,28 @@ const MobileInventory = () => {
                   )}
                   {/* 尺码列表 */}
                   <div style={{ flex: 1 }}>
-                    {group.sizes.map((size, idx2) => {
+                    {[...group.sizes].sort((a, b) => getSizeRank(a.sku_size) - getSizeRank(b.sku_size)).map((size, idx2) => {
                       const skuKey = `${group.color}-${size.sku_size}-${size.sku_code}`;
                       const isExpanded = expandedSkuKey === skuKey;
                       return (
-                        <div key={size.sku_code+idx2} style={{ marginBottom: 8, padding: '4px 8px', border: '1px solid #f0f0f0', borderRadius: '4px', backgroundColor: isExpanded ? '#f6faff' : '#fafafa', cursor: 'pointer' }}
+                        <div key={size.sku_code+idx2} style={{ marginBottom: 8, padding: '4px 8px', border: '1px solid #1890ff', borderRadius: 8, backgroundColor: '#f5fbff', cursor: 'pointer' }}
                           onClick={() => setExpandedSkuKey(isExpanded ? null : skuKey)}
                         >
                           {/* SKU信息行 */}
-                          <Tag color="blue" style={{ marginRight: 12, fontSize: 16, padding: '4px 12px' }}>
-                            {size.sku_size} ({size.sku_code})
-                            <span style={{ marginLeft: 8, color: '#52c41a', fontWeight: 500 }}>
-                              库存: {size.sku_total_quantity}
-                            </span>
-                          </Tag>
+                          <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                            <Tag color="blue" style={{ fontSize: 16, padding: '4px 12px', marginRight: 8 }}>
+                              {size.sku_size}
+                            </Tag>
+                            <div style={{ flex: 1, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              <span style={{ color: '#52c41a', fontWeight: 600 }}>
+                                {size.sku_total_quantity}件
+                              </span>
+                              <span style={{ marginLeft: 8, color: '#8c8c8c' }}>
+                                占{Array.isArray(size.locations) ? size.locations.length : 0}位
+                              </span>
+                            </div>
+                            <RightOutlined style={{ color: '#999', fontSize: 16, transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                          </div>
                           {/* 展开时显示库位、操作按钮、选货位入库 */}
                           {isExpanded && (
                             <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 4 }} onClick={e => e.stopPropagation()}>
@@ -613,7 +647,7 @@ const MobileInventory = () => {
                                           setExpandedLocationKey(isLocExpanded ? null : locKey);
                                         }}
                                       >
-                                        <span>库位：{loc.location_code}</span>
+                                        <span>{loc.location_code}</span>
                                         <span style={{ color: '#52c41a', marginLeft: 8 }}>{loc.stock_quantity}件</span>
                                       </div>
                                       {isLocExpanded && (

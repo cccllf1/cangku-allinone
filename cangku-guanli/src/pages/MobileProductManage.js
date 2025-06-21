@@ -353,7 +353,8 @@ const MobileProductManage = () => {
       }
       
       setModalVisible(false);
-      // fetchProducts(); // 刷新产品列表已由 inventory 聚合实现，上行调用移除
+      // 刷新产品列表，确保新增 / 修改后立即可见
+      await fetchProducts();
     } catch (error) {
       console.error('提交失败:', error);
       message.error('提交失败: ' + (error.response?.data?.error_message || error.message));
@@ -876,6 +877,41 @@ const MobileProductManage = () => {
     fetchCurrentUser();
   }, []);
 
+  // === 颜色输入变更 ===
+  const handleUpdateColor = (colorIdx, newColor) => {
+    setSkus(prev => {
+      const arr = [...prev];
+      const productCode = form.getFieldValue('product_code') || '';
+      const group = { ...arr[colorIdx], color: newColor };
+      // 颜色改变后，刷新该颜色组下所有 SKU 编码
+      group.sizes = group.sizes.map(sz => ({
+        ...sz,
+        sku_code: generateDynamicSkuCode(productCode, newColor, sz.sku_size, form),
+      }));
+      arr[colorIdx] = group;
+      return arr;
+    });
+  };
+
+  // === 尺码或 SKU 变更 ===
+  const handleUpdateSize = (colorIdx, sizeIdx, field, value) => {
+    setSkus(prev => {
+      const arr = [...prev];
+      const productCode = form.getFieldValue('product_code') || '';
+      const group = { ...arr[colorIdx] };
+      const sizeArr = [...group.sizes];
+      const sizeObj = { ...sizeArr[sizeIdx], [field]: value };
+      // 若修改的是尺码，需要同步刷新 SKU 编码
+      if (field === 'sku_size') {
+        sizeObj.sku_code = generateDynamicSkuCode(productCode, group.color, value, form);
+      }
+      sizeArr[sizeIdx] = sizeObj;
+      group.sizes = sizeArr;
+      arr[colorIdx] = group;
+      return arr;
+    });
+  };
+
   return (
     <div className="page-container" style={{ padding: 16 }}>
       <MobileNavBar currentPage="products" />
@@ -1098,12 +1134,11 @@ const MobileProductManage = () => {
                   <div style={{ display: 'flex', alignItems: 'center' }}>
                     <span>颜色：</span>
                     <Input
-                      mode="tags"
                       allowClear
                       style={{ width: 120, marginRight: 8 }}
-                      value={colorGroup.color}
-                      onChange={val => handleUpdateColor(colorIdx, val)}
-                      placeholder="输入或选择颜色"
+                      defaultValue={colorGroup.color}
+                      onBlur={e => handleUpdateColor(colorIdx, e.target.value)}
+                      placeholder="输入颜色"
                     />
                     <Button 
                       danger 
@@ -1170,13 +1205,11 @@ const MobileProductManage = () => {
                           <div style={{ flex: '0 0 80px' }}>
                             <span style={{ fontSize: 12, color: '#666', marginBottom: 4, display: 'block' }}>尺码:</span>
                             <Input
-                              mode="tags"
                               allowClear
                               style={{ width: '100%' }}
-                              value={size.sku_size}
-                              onChange={val => handleUpdateSize(colorIdx, sizeIdx, 'sku_size', val)}
-                              options={DEFAULT_SIZES.map(s => ({ value: s, label: s }))}
-                              placeholder="输入或选择尺码"
+                              defaultValue={size.sku_size}
+                              onBlur={e => handleUpdateSize(colorIdx, sizeIdx, 'sku_size', e.target.value)}
+                              placeholder="输入尺码"
                             />
                           </div>
                           
@@ -1184,9 +1217,9 @@ const MobileProductManage = () => {
                           <div style={{ flex: 1 }}>
                             <span style={{ fontSize: 12, color: '#666', marginBottom: 4, display: 'block' }}>SKU编码:</span>
                             <Input
-                              value={size.sku_code}
+                              defaultValue={size.sku_code}
                               size="small"
-                              onChange={e => handleUpdateSize(colorIdx, sizeIdx, 'sku_code', e.target.value)}
+                              onBlur={e => handleUpdateSize(colorIdx, sizeIdx, 'sku_code', e.target.value)}
                               placeholder="SKU编码"
                             />
                           </div>
