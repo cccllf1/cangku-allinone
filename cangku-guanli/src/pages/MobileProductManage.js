@@ -138,35 +138,8 @@ const MobileProductManage = () => {
 
   // 加载所有产品和自定义设置
   useEffect(() => {
-    // fetchProducts(); // 已由 /products 代替
+    fetchProducts();
     loadCustomSettings();
-    // 拉取库存 - 使用新的标准字段名
-    api.get('/products', { params: { page: 1, page_size: 1000 } }).then(res => {
-      const list = res.data.data?.products || [];
-      const map = {};
-      const stats = {};
-      list.forEach(prod => {
-        let total = 0;
-        (prod.colors || []).forEach(col => {
-          (col.sizes || []).forEach(sz => {
-            total += sz.sku_total_quantity || 0;
-          });
-        });
-        map[prod.product_code] = total;
-        stats[prod.product_code] = {
-          product_total_quantity: prod.product_total_quantity || total,
-          total_sku_count: prod.total_sku_count || 0,           // 修正字段名
-          total_color_count: prod.total_color_count || 0,       // 修正字段名
-          total_location_count: prod.total_location_count || 0  // 修正字段名
-        };
-      });
-      setProductInventoryMap(map);
-      setProductStatsMap(stats);
-      setProducts(list);
-      setFilteredProducts(list);
-    }).catch(err => {
-      console.error('获取库存数据失败:', err);
-    });
   }, []);
   
   // 加载自定义设置
@@ -194,10 +167,29 @@ const MobileProductManage = () => {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/products/');
-      const productsData = response.data.data || []; // 修复：使用正确的响应字段
-      setProducts(productsData);
-      setFilteredProducts(productsData);
+      const res = await api.get('/products', { params: { page: 1, page_size: 1000 } });
+      const list = res.data.data?.products || [];
+      const map = {};
+      const stats = {};
+      list.forEach(prod => {
+        let total = 0;
+        (prod.colors || []).forEach(col => {
+          (col.sizes || []).forEach(sz => {
+            total += sz.sku_total_quantity || 0;
+          });
+        });
+        map[prod.product_code] = total;
+        stats[prod.product_code] = {
+          product_total_quantity: prod.product_total_quantity || total,
+          total_sku_count: prod.total_sku_count || 0,
+          total_color_count: prod.total_color_count || 0,
+          total_location_count: prod.total_location_count || 0
+        };
+      });
+      setProductInventoryMap(map);
+      setProductStatsMap(stats);
+      setProducts(list);
+      setFilteredProducts(list);
     } catch (error) {
       console.error('获取产品失败:', error);
       message.error('获取产品失败');
