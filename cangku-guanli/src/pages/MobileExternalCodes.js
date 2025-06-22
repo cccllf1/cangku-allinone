@@ -160,35 +160,52 @@ const MobileExternalCodes = () => {
       }
     }
     
-    // API 搜索
+    // 🎯 使用统一的智能API搜索
     try {
       setLoading(true);
-      const response = await api.get(`/products/sku-lookup/${query}`);
-      const data = response.data.data;
+      console.log('🔍 外部条码管理页面智能查询:', query);
+      const response = await api.get(`/products/code/${query}`);
+      
+      if (response?.data?.success && response.data.data) {
+        const productData = response.data.data;
+        const queryType = productData.query_type || 'unknown';
+        console.log('✅ 查询成功:', query, '-> 类型:', queryType);
 
-      if (data && data.type === 'sku') {
-        const skuInfo = data.result;
-        message.success(`通过API找到 SKU: ${skuInfo.sku_code}`);
-        await loadProducts();
-        setTimeout(() => {
-          setExpandedProduct(skuInfo.product_code);
-          setExpandedColor(`${skuInfo.product_code}-${skuInfo.color}`);
-          const product = skuInfo.product;
-          const colorObj = product.colors.find(c => c.color === skuInfo.color);
-          handleSkuClick(skuInfo, product, colorObj);
-        }, 100);
-      } else if (data && data.type === 'product') {
-        const productInfo = data.result;
-        message.success(`通过API找到商品: ${productInfo.product_code}`);
-        await loadProducts();
-        setTimeout(() => {
-          setExpandedProduct(productInfo.product_code);
-          setExpandedColor(null);
-        }, 100);
+        if (productData.matched_sku) {
+          // 找到了精确的SKU匹配（SKU查询或外部条码查询）
+          const matchedSku = productData.matched_sku;
+          message.success(`通过${queryType}找到 SKU: ${matchedSku.sku_code}`);
+          
+          await loadProducts();
+          setTimeout(() => {
+            setExpandedProduct(productData.product_code);
+            setExpandedColor(`${productData.product_code}-${matchedSku.sku_color}`);
+            
+            // 构建SKU信息用于点击处理
+            const skuInfo = {
+              sku_code: matchedSku.sku_code,
+              sku_color: matchedSku.sku_color,
+              sku_size: matchedSku.sku_size,
+              sku_total_quantity: matchedSku.sku_total_quantity
+            };
+            const colorObj = { color: matchedSku.sku_color };
+            handleSkuClick(skuInfo, productData, colorObj);
+          }, 100);
+        } else {
+          // 产品代码查询，显示整个产品
+          message.success(`通过${queryType}找到商品: ${productData.product_code}`);
+          await loadProducts();
+          setTimeout(() => {
+            setExpandedProduct(productData.product_code);
+            setExpandedColor(null);
+          }, 100);
+        }
       } else {
+        console.log('❌ 查询失败:', query, '-> 无数据');
         message.error('未找到匹配的商品、SKU或外部条码');
       }
     } catch (error) {
+      console.error('❌ 网络异常:', query, '->', error.message);
       const errorMessage = error.response?.data?.error_message || '搜索失败，请检查条码是否正确';
       message.error(errorMessage);
     } finally {

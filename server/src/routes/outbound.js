@@ -76,15 +76,28 @@ router.post('/', auth, async (req, res) => {
       });
     }
     
-    // 找到库位信息（使用必填的location_code）
-    let location = await Location.findOne({ location_code: location_code });
+    // 特殊处理"无货位"
+    const SPECIAL_NO_LOCATION_CODE = "无货位";
+    let location = null;
     
-    if (!location) {
-      return res.status(404).json({ 
-        success: false,
-        error_code: 'LOCATION_NOT_FOUND',
-        error_message: '找不到指定的库位'
-      });
+    if (location_code === SPECIAL_NO_LOCATION_CODE) {
+      // "无货位"是特殊库位，不需要在Location表中存在
+      location = {
+        location_code: SPECIAL_NO_LOCATION_CODE,
+        location_name: "无货位",
+        _id: null
+      };
+    } else {
+      // 普通库位需要在Location表中查找
+      location = await Location.findOne({ location_code: location_code });
+      
+      if (!location) {
+        return res.status(404).json({ 
+          success: false,
+          error_code: 'LOCATION_NOT_FOUND',
+          error_message: '找不到指定的库位'
+        });
+      }
     }
     
     const prodCode = product.product_code;

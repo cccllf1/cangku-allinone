@@ -611,21 +611,53 @@ router.delete('/:id/external-codes/:code', auth, async (req, res) => {
   }
 });
 
-// 按商品编码或SKU编码查询
+// 按商品编码或SKU编码或外部条码查询
 router.get('/code/:code', auth, async (req, res) => {
   try {
     const { code } = req.params;
-    let isSkuQuery = false;
-    let product;
+    let queryType = null;
+    let product = null;
 
-    // 1. 判断是查商品还是查SKU，并获取唯一的商品
-    if (code.includes('-')) {
-      isSkuQuery = true;
+    // 1. 按优先级依次尝试查询，让数据库结果决定匹配类型
+    
+    // 优先级1: 尝试按SKU编码查询（最精确）
+    try {
       product = await Product.findOne({ 'colors.sizes.sku_code': code }).lean();
-    } else {
-      product = await Product.findOne({ product_code: code }).lean();
+      if (product) {
+        queryType = 'sku';
+        console.log(`找到SKU匹配: ${code}`);
+      }
+    } catch (e) {
+      console.log(`SKU查询异常: ${e.message}`);
+    }
+    
+    // 优先级2: 如果SKU查询无结果，尝试按产品代码查询
+    if (!product) {
+      try {
+        product = await Product.findOne({ product_code: code }).lean();
+        if (product) {
+          queryType = 'product';
+          console.log(`找到产品代码匹配: ${code}`);
+        }
+      } catch (e) {
+        console.log(`产品代码查询异常: ${e.message}`);
+      }
+    }
+    
+    // 优先级3: 如果产品代码查询也无结果，尝试按外部条码查询
+    if (!product) {
+      try {
+        product = await Product.findOne({ 'colors.sizes.external_codes.external_code': code }).lean();
+        if (product) {
+          queryType = 'external_code';
+          console.log(`找到外部条码匹配: ${code}`);
+        }
+      } catch (e) {
+        console.log(`外部条码查询异常: ${e.message}`);
+      }
     }
 
+    // 如果所有查询都失败
     if (!product) {
       return res.status(404).json({
         success: false,
@@ -667,31 +699,57 @@ router.get('/code/:code', auth, async (req, res) => {
     }
     product.product_total_quantity = product_total_quantity;
     
-    // 4. 如果是SKU查询，构建并附加一个正确、完整的 `matched_sku` 对象
-    if (isSkuQuery) {
+    // 4. 根据查询类型构建matched_sku对象
+    if (queryType === 'sku' || queryType === 'external_code') {
       let matched_sku_data = null;
-      for (const color of product.colors) {
-        const foundSize = color.sizes.find(s => s.sku_code === code);
-        if (foundSize) {
-          matched_sku_data = {
-            sku_code: foundSize.sku_code,
-            sku_color: color.color,
-            sku_size: foundSize.sku_size,
-            image_path: color.image_path || '',
-            stock_quantity: foundSize.sku_total_quantity // 使用整合后的总库存
-          };
-          break;
+      let targetSkuCode = null;
+      
+      if (queryType === 'sku') {
+        // SKU查询，直接使用查询代码
+        targetSkuCode = code;
+      } else if (queryType === 'external_code') {
+        // 外部条码查询，需要找到对应的SKU代码
+        for (const color of product.colors) {
+          for (const size of color.sizes) {
+            if (size.external_codes && size.external_codes.some(ec => ec.external_code === code)) {
+              targetSkuCode = size.sku_code;
+              break;
+            }
+          }
+          if (targetSkuCode) break;
+        }
+      }
+      
+      // 根据SKU代码构建matched_sku对象
+      if (targetSkuCode) {
+        for (const color of product.colors) {
+          const foundSize = color.sizes.find(s => s.sku_code === targetSkuCode);
+          if (foundSize) {
+            matched_sku_data = {
+              sku_code: foundSize.sku_code,
+              sku_color: color.color,
+              sku_size: foundSize.sku_size,
+              image_path: color.image_path || '',
+              stock_quantity: foundSize.sku_total_quantity, // 使用整合后的总库存
+              sku_total_quantity: foundSize.sku_total_quantity,
+              locations: foundSize.locations,
+              external_codes: foundSize.external_codes || []
+            };
+            break;
+          }
         }
       }
       product.matched_sku = matched_sku_data;
     }
 
-    // 5. 返回最终处理好的商品数据
+    // 5. 返回最终处理好的商品数据，包含查询类型信息
     res.json({
       success: true,
       data: {
         ...product, // 返回所有整合后的字段
-        product_id: product._id
+        product_id: product._id,
+        query_type: queryType, // 告诉前端是通过什么方式找到的
+        query_code: code // 告诉前端查询的原始代码
       },
       error_code: null,
       error_message: null

@@ -70,25 +70,22 @@ const MobileOutbound = () => {
     
     setLoading(true);
     try {
+      // 🎯 使用统一的智能API（支持产品代码、SKU代码、外部条码）
       let productData = null;
       try {
-        if (code.includes('-')) {
-          const skuRes = await api.get(`/products/code/${code}`);
-          productData = skuRes?.data?.data;
+        console.log('🔍 出库页面智能查询:', code);
+        const response = await api.get(`/products/code/${code}`);
+        if (response?.data?.success && response.data.data) {
+          productData = response.data.data;
+          const queryType = productData.query_type || 'unknown';
+          console.log('✅ 查询成功:', code, '-> 类型:', queryType);
         } else {
-          const prodRes = await api.get(`/products/code/${code}`);
-          productData = prodRes?.data?.data;
+          console.log('❌ 查询失败:', code, '-> 无数据');
         }
       } catch (err) {
-        if (err.response && err.response.status === 404 && !code.includes('-')) {
-          try {
-            const extRes = await api.get(`/products/external-code/${code}`);
-            if (extRes?.data?.success && extRes.data.data) {
-              productData = extRes.data.data;
-            }
-          } catch (err2) {
-            // 外部条码也查找失败
-          }
+        console.error('❌ 网络异常:', code, '->', err.message);
+        if (err.response?.status === 404) {
+          console.log('📝 商品未找到:', code);
         }
       }
 
