@@ -72,10 +72,17 @@ const InboundItemCard = ({
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
           {/* 商品编码 + 删除 */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: 700, fontSize: 16, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span style={{ fontWeight: 700, fontSize: 16, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' }}>
               {item.display_code || item.product_code}
             </span>
-            <Button type="text" danger icon={<DeleteOutlined />} onClick={() => onDelete(item.key)} />
+            <div style={{ flex: 1, textAlign: 'right', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+              {item.sku_total_quantity != null && item.sku_code && (
+                <span style={{color: '#1677ff', fontSize: 14, marginRight: 8, fontWeight: 'bold'}}>
+                  ({item.sku_total_quantity}件)
+                </span>
+              )}
+              <Button type="text" danger icon={<DeleteOutlined />} onClick={() => onDelete(item.key)} />
+            </div>
           </div>
 
           {/* 颜色 */}

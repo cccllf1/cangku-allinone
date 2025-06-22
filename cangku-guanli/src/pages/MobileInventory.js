@@ -617,7 +617,7 @@ const MobileInventory = () => {
                               </span>
                               <span style={{ marginLeft: 8, color: '#8c8c8c' }}>
                                 占{Array.isArray(size.locations) ? size.locations.length : 0}位
-                              </span>
+                            </span>
                             </div>
                             <RightOutlined style={{ color: '#999', fontSize: 16, transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
                           </div>

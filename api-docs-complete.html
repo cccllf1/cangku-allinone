@@ -484,11 +484,8 @@
   "success": true,
   "data": {
     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "user": {
-      "user_id": "64f7b1c8e4b0c1234567890a",
-      "user_name": "admin",
-      "role": "admin"
-    },
+    "user_id": "64f7b1c8e4b0c1234567890a",
+    "user_name": "admin",
     "is_admin": true
   },
   "error_code": null,
@@ -659,11 +656,11 @@ Authorization: Bearer your_jwt_token</code></pre>
                 "locations": [
                   {
                     "location_code": "A01-01-01",
-                    "stock_quantity": 60
+                    "sku_location_quantity": 60
                   },
                   {
                     "location_code": "A01-01-02",
-                    "stock_quantity": 40
+                    "sku_location_quantity": 40
                   }
                 ]
               },
@@ -674,7 +671,7 @@ Authorization: Bearer your_jwt_token</code></pre>
                 "locations": [
                   {
                     "location_code": "A01-01-01",
-                    "stock_quantity": 50
+                    "sku_location_quantity": 50
                   }
                 ]
               }
@@ -694,7 +691,7 @@ Authorization: Bearer your_jwt_token</code></pre>
                 "locations": [
                   {
                     "location_code": "A01-01-02",
-                    "stock_quantity": 80
+                    "sku_location_quantity": 80
                   }
                 ]
               }
@@ -975,6 +972,505 @@ Authorization: Bearer your_jwt_token</code></pre>
   "data": null,
   "error_code": "PRODUCT_NOT_FOUND",
   "error_message": "商品不存在"
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method post">POST</span>
+                    <span class="endpoint-url">/products</span>
+                </div>
+                <div class="endpoint-description">创建新商品</div>
+                <div class="params">
+                    <h4>请求参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>product_code</td><td>string</td><td class="required">是</td><td>商品编码（唯一）</td></tr>
+                        <tr><td>product_name</td><td>string</td><td class="optional">否</td><td>商品名称，默认使用编码</td></tr>
+                        <tr><td>unit</td><td>string</td><td class="optional">否</td><td>计量单位，默认"件"</td></tr>
+                        <tr><td>colors</td><td>array</td><td class="required">是</td><td>颜色列表（必须提供，系统不支持简单商品）</td></tr>
+                        <tr><td>description</td><td>string</td><td class="optional">否</td><td>商品描述</td></tr>
+                        <tr><td>category_code_1</td><td>string</td><td class="optional">否</td><td>一级分类编码（如"CLOTHING"）</td></tr>
+                        <tr><td>category_name_1</td><td>string</td><td class="optional">否</td><td>一级分类名称（如"服装"）</td></tr>
+                        <tr><td>category_code_2</td><td>string</td><td class="optional">否</td><td>二级分类编码（如"TOPS"）</td></tr>
+                        <tr><td>category_name_2</td><td>string</td><td class="optional">否</td><td>二级分类名称（如"上装"）</td></tr>
+                        <tr><td>operator_id</td><td>string</td><td class="required">是</td><td>操作人ID</td></tr>
+                        <tr><td>is_urgent</td><td>boolean</td><td class="optional">否</td><td>是否紧急操作，默认false</td></tr>
+                        <tr><td>notes</td><td>string</td><td class="optional">否</td><td>备注信息</td></tr>
+                    </table>
+                </div>
+                
+                <div class="note">
+                    <div class="note-title">🔧 商品类型说明</div>
+                    <p><strong>系统只支持变体商品：</strong></p>
+                    <ul style="margin-top: 0.5rem; padding-left: 1.5rem;">
+                        <li><strong>变体商品（has_sku: true）:</strong> 必须提供colors数组，系统不支持简单商品</li>
+                        <li><strong>层级结构：</strong> 商品 → 颜色 → 尺寸，图片属于颜色层级</li>
+                        <li><strong>自动生成SKU：</strong> 系统根据商品编码、颜色、尺寸自动生成SKU编码</li>
+                    </ul>
+                </div>
+                
+                <div class="note">
+                    <div class="note-title">🏷️ 商品分类说明</div>
+                    <p><strong>商品分类字段用于组织和管理不同类型的商品：</strong></p>
+                    <ul style="margin-top: 0.5rem; padding-left: 1.5rem;">
+                        <li><strong>一级分类：</strong>主要商品类别，如"服装"、"鞋类"、"配件"、"家居用品"</li>
+                        <li><strong>二级分类：</strong>细分类别，如"上装"、"下装"、"内衣"、"运动鞋"</li>
+                        <li><strong>常见服装分类示例：</strong></li>
+                                                 <ul style="margin-top: 0.3rem; padding-left: 1.5rem;">
+                             <li>CLOTHING/服装 → TOPS/上装（衬衫、T恤、外套、毛衣）</li>
+                             <li>CLOTHING/服装 → BOTTOMS/下装（长裤、短裤、裙子、牛仔裤）</li>
+                             <li>CLOTHING/服装 → UNDERWEAR/内衣（内裤、文胸、睡衣）</li>
+                             <li>FOOTWEAR/鞋类 → CASUAL/休闲鞋、FORMAL/正装鞋、SPORTS/运动鞋</li>
+                             <li>ACCESSORIES/配件 → BAGS/包类、BELTS/皮带、JEWELRY/饰品</li>
+                             <li>STATIONERY/文具 → WRITING/书写用品、STORAGE/收纳用品</li>
+                         </ul>
+                    </ul>
+                </div>
+                
+                <div class="note">
+                    <div class="note-title">📦 颜色数组格式说明</div>
+                    <p><strong>colors数组中每个颜色元素包含：</strong></p>
+                    <ul style="margin-top: 0.5rem; padding-left: 1.5rem;">
+                        <li><strong>color:</strong> 颜色名称（必需，如"红"）</li>
+                        <li><strong>image_path:</strong> 该颜色的商品图片路径（必需）</li>
+                        <li><strong>sizes:</strong> 该颜色下的尺寸数组（必需）</li>
+                    </ul>
+                    <p><strong>sizes数组中每个尺寸元素包含：</strong></p>
+                    <ul style="margin-top: 0.5rem; padding-left: 1.5rem;">
+                        <li><strong>size:</strong> 尺寸名称（必需，如"L"）</li>
+                        <li><strong>sku_code:</strong> 该颜色尺寸对应的SKU编码（可选，系统可自动生成）</li>
+                    </ul>
+                    <p><strong>🎨 层级结构：</strong>商品 → 颜色 → 尺寸，图片属于颜色层级，SKU编码在尺寸层级</p>
+                </div>
+                
+                <div class="params">
+                    <h4>📤 请求示例 - 变体商品（多颜色尺寸）:</h4>
+                    <pre><code>POST /api/products
+Content-Type: application/json
+Authorization: Bearer your_jwt_token
+
+{
+  "product_code": "SHIRT-001",
+  "product_name": "经典衬衫",
+  "unit": "件",
+  "category_code_1": "CLOTHING",
+  "category_name_1": "服装",
+  "category_code_2": "TOPS",
+  "category_name_2": "上装",
+  "colors": [
+    {
+      "color": "红",
+      "image_path": "/uploads/colors/shirt-001-red.jpg",
+      "sizes": [
+        {
+          "size": "L",
+          "sku_code": "SHIRT-001-红-L"
+        },
+        {
+          "size": "XL"
+        }
+      ]
+    },
+    {
+      "color": "蓝",
+      "image_path": "/uploads/colors/shirt-001-blue.jpg",
+      "sizes": [
+        {
+          "size": "M",
+          "sku_code": "SHIRT-001-蓝-M"
+        },
+        {
+          "size": "L"
+        }
+      ]
+    }
+  ],
+  "description": "高品质商务衬衫，多色多码可选",
+  "operator_id": "user123",
+  "is_urgent": false,
+  "notes": "新品上线"
+}</code></pre>
+                </div>
+                
+                <div class="params">
+                    <h4>📥 成功响应 (201 Created):</h4>
+                    <pre><code>{
+  "success": true,
+     "data": {
+     "product_id": "64f9a1b2c3d4e5f6789abc01",
+     "product_code": "SHIRT-001",
+     "product_name": "经典衬衫",
+     "unit": "件",
+     "has_sku": true,
+     "category_code_1": "CLOTHING",
+     "category_name_1": "服装",
+     "category_code_2": "TOPS",
+     "category_name_2": "上装",
+     "product_total_quantity": 0,
+     "colors": [
+       {
+         "color": "红",
+         "image_path": "/uploads/colors/shirt-001-red.jpg",
+         "color_total_quantity": 0,
+         "sizes": [
+           {
+             "sku_size": "L",
+             "sku_code": "SHIRT-001-红-L",
+             "sku_total_quantity": 0,
+             "locations": []
+           }
+         ]
+       },
+       {
+         "color": "蓝",
+         "image_path": "/uploads/colors/shirt-001-blue.jpg",
+         "color_total_quantity": 0,
+         "sizes": [
+           {
+             "sku_size": "M",
+             "sku_code": "SHIRT-001-蓝-M",
+             "sku_total_quantity": 0,
+             "locations": []
+           }
+         ]
+       }
+     ],
+    "description": "高品质商务衬衫，多色多码可选",
+    "created_at": "2024-12-01T10:30:00Z",
+    "operated_at": "2024-12-01T10:30:00Z",
+    "operator_id": "user123",
+    "is_urgent": false,
+    "notes": "新品上线"
+  },
+  "error_code": null,
+  "error_message": null
+}</code></pre>
+                </div>
+                
+                <div class="params">
+                    <h4>响应字段说明:</h4>
+                    <table class="param-table">
+                        <tr><th>字段名</th><th>类型</th><th>说明</th></tr>
+                        <tr><td>product_id</td><td>string</td><td>系统生成的商品唯一ID</td></tr>
+                        <tr><td>product_code</td><td>string</td><td>商品编码</td></tr>
+                        <tr><td>product_name</td><td>string</td><td>商品名称</td></tr>
+                        <tr><td>unit</td><td>string</td><td>计量单位</td></tr>
+                        <tr><td>has_sku</td><td>boolean</td><td>是否有SKU变体（系统固定为true，只支持变体商品）</td></tr>
+                        <tr><td>category_code_1</td><td>string</td><td>一级分类编码</td></tr>
+                        <tr><td>category_name_1</td><td>string</td><td>一级分类名称</td></tr>
+                        <tr><td>category_code_2</td><td>string</td><td>二级分类编码</td></tr>
+                        <tr><td>category_name_2</td><td>string</td><td>二级分类名称</td></tr>
+                        <tr><td>product_total_quantity</td><td>number</td><td>商品所有SKU的总数量</td></tr>
+                        <tr><td>colors</td><td>array</td><td>按颜色分组的SKU结构，每个颜色包含对应的图片</td></tr>
+                        <tr><td>colors[].color_total_quantity</td><td>number</td><td>该颜色下所有尺寸的总数量</td></tr>
+                        <tr><td>colors[].sizes[].sku_total_quantity</td><td>number</td><td>该SKU在所有库位的总数量</td></tr>
+                        <tr><td>description</td><td>string</td><td>商品描述</td></tr>
+                        <tr><td>created_at</td><td>string</td><td>创建时间（ISO格式）</td></tr>
+                        <tr><td>operated_at</td><td>string</td><td>操作时间（ISO格式）</td></tr>
+                        <tr><td>operator_id</td><td>string</td><td>操作人ID</td></tr>
+                        <tr><td>is_urgent</td><td>boolean</td><td>是否紧急操作</td></tr>
+                        <tr><td>notes</td><td>string</td><td>备注信息</td></tr>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- 修改商品 -->
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method put">PUT</span>
+                    <span class="endpoint-url">/products/:id</span>
+                </div>
+                <div class="endpoint-description">修改商品信息</div>
+                
+                <div class="note">
+                    <div class="note-title">🔧 修改功能特点</div>
+                    <ul style="margin-top: 0.5rem; padding-left: 1.5rem;">
+                        <li><strong>颜色结构管理</strong>：只支持新的颜色结构（商品→颜色→尺寸）</li>
+                        <li><strong>安全更新</strong>：只更新提供的字段，未提供的字段保持不变</li>
+                        <li><strong>分类支持</strong>：支持一级、二级分类的更新</li>
+                    </ul>
+                </div>
+                
+                <div class="params">
+                    <h4>路径参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>id</td><td>string</td><td class="required">是</td><td>商品ID（MongoDB ObjectId）</td></tr>
+                    </table>
+                </div>
+                
+                <div class="params">
+                    <h4>请求参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>operator_id</td><td>string</td><td class="required">是</td><td>操作人ID</td></tr>
+                        <tr><td>product_code</td><td>string</td><td class="optional">否</td><td>商品编码</td></tr>
+                        <tr><td>product_name</td><td>string</td><td class="optional">否</td><td>商品名称</td></tr>
+                        <tr><td>unit</td><td>string</td><td class="optional">否</td><td>计量单位，默认"件"</td></tr>
+                        <tr><td>description</td><td>string</td><td class="optional">否</td><td>商品描述</td></tr>
+                        <tr><td>category_code_1</td><td>string</td><td class="optional">否</td><td>一级分类编码</td></tr>
+                        <tr><td>category_name_1</td><td>string</td><td class="optional">否</td><td>一级分类名称</td></tr>
+                        <tr><td>category_code_2</td><td>string</td><td class="optional">否</td><td>二级分类编码</td></tr>
+                        <tr><td>category_name_2</td><td>string</td><td class="optional">否</td><td>二级分类名称</td></tr>
+                        <tr><td>colors</td><td>array</td><td class="optional">否</td><td>颜色结构数组</td></tr>
+                        <tr><td>is_urgent</td><td>boolean</td><td class="optional">否</td><td>是否紧急操作，默认false</td></tr>
+                        <tr><td>notes</td><td>string</td><td class="optional">否</td><td>操作备注</td></tr>
+                    </table>
+                </div>
+                
+                <div class="params">
+                    <h4>📤 请求示例 - 修改商品名称:</h4>
+                    <pre><code>PUT /api/products/64f9a1b2c3d4e5f6789abc01
+Content-Type: application/json
+Authorization: Bearer your_jwt_token
+
+{
+  "product_name": "经典衬衫（升级版）",
+  "description": "更新了面料的高品质商务衬衫",
+  "operator_id": "user123",
+  "notes": "面料升级"
+}</code></pre>
+                </div>
+                
+                <div class="params">
+                    <h4>📤 请求示例 - 修改颜色结构:</h4>
+                    <pre><code>PUT /api/products/64f9a1b2c3d4e5f6789abc01
+Content-Type: application/json
+Authorization: Bearer your_jwt_token
+
+{
+  "colors": [
+    {
+      "color": "红",
+      "image_path": "/uploads/colors/shirt-001-red-v2.jpg",
+      "sizes": [
+        { "size": "M" },
+        { "size": "L" },
+        { "size": "XL" }
+      ]
+    },
+    {
+      "color": "黑",
+      "image_path": "/uploads/colors/shirt-001-black.jpg",
+      "sizes": [
+        { "size": "L" }
+      ]
+    }
+  ],
+  "operator_id": "user123",
+  "notes": "新增黑色，停产红色S码",
+  "is_urgent": false
+}</code></pre>
+                </div>
+                
+                <div class="params">
+                    <h4>📥 成功响应 (200 OK):</h4>
+                    <pre><code>{
+  "success": true,
+  "data": {
+    "product_id": "64f9a1b2c3d4e5f6789abc01",
+    "product_code": "SHIRT-001",
+    "product_name": "经典衬衫（升级版）",
+    "unit": "件",
+    "has_sku": true,
+    "product_total_quantity": 150,
+    "colors": [
+      {
+        "color": "红",
+        "image_path": "/uploads/colors/shirt-001-red.jpg",
+        "color_total_quantity": 80,
+        "sizes": [
+          {
+            "sku_size": "L",
+            "sku_code": "SHIRT-001-红-L",
+            "sku_total_quantity": 50
+          }
+        ]
+      }
+    ],
+    "description": "更新了面料的高品质商务衬衫",
+    "updated_at": "2024-12-01T15:30:00Z",
+    "operated_at": "2024-12-01T15:30:00Z",
+    "operator_id": "user123",
+    "is_urgent": false,
+    "notes": "面料升级"
+  },
+  "error_code": null,
+  "error_message": null
+}</code></pre>
+                </div>
+            </div>
+            
+            <!-- 删除商品 -->
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method delete">DELETE</span>
+                    <span class="endpoint-url">/products/:id</span>
+                </div>
+                <div class="endpoint-description">删除商品（安全删除，有库存时拒绝）</div>
+                
+                <div class="warning">
+                    <div class="warning-title">⚠️ 安全限制</div>
+                    <ul style="margin-top: 0.5rem; padding-left: 1.5rem;">
+                        <li><strong>库存检查</strong>：有库存的商品不能删除</li>
+                        <li><strong>级联删除</strong>：删除商品时会自动清理所有相关库存记录</li>
+                        <li><strong>不可恢复</strong>：删除操作无法撤销，请谨慎操作</li>
+                    </ul>
+                </div>
+                
+                <div class="params">
+                    <h4>路径参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>id</td><td>string</td><td class="required">是</td><td>商品ID（MongoDB ObjectId）</td></tr>
+                    </table>
+                </div>
+                
+                <div class="params">
+                    <h4>请求参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>operator_id</td><td>string</td><td class="required">是</td><td>操作人ID</td></tr>
+                        <tr><td>is_urgent</td><td>boolean</td><td class="optional">否</td><td>是否紧急操作，默认false</td></tr>
+                        <tr><td>notes</td><td>string</td><td class="optional">否</td><td>删除原因说明</td></tr>
+                    </table>
+                </div>
+                
+                <div class="params">
+                    <h4>📤 请求示例:</h4>
+                    <pre><code>DELETE /api/products/64f9a1b2c3d4e5f6789abc01
+Content-Type: application/json
+Authorization: Bearer your_jwt_token
+
+{
+  "operator_id": "user123",
+  "notes": "产品停产，清理系统数据",
+  "is_urgent": false
+}</code></pre>
+                </div>
+                
+                <div class="params">
+                    <h4>📥 成功响应 (200 OK):</h4>
+                    <pre><code>{
+  "success": true,
+  "data": {
+    "product_id": "64f9a1b2c3d4e5f6789abc01",
+    "operated_at": "2024-12-01T15:30:00Z",
+    "operator_id": "user123",
+    "is_urgent": false,
+    "notes": "产品停产，清理系统数据"
+  },
+  "error_code": null,
+  "error_message": null
+}</code></pre>
+                </div>
+                
+                <div class="params">
+                    <h4>📥 库存检查失败响应 (400 Bad Request):</h4>
+                    <pre><code>{
+  "success": false,
+  "data": {
+    "product_id": "64f9a1b2c3d4e5f6789abc01",
+    "stock_quantity": 150
+  },
+  "error_code": "OPERATION_NOT_ALLOWED",
+  "error_message": "商品还有库存，不能删除"
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method get">GET</span>
+                    <span class="endpoint-url">/sku-lookup/:code</span>
+                </div>
+                <div class="endpoint-description"><strong>通用智能查询</strong> - 根据商品编码、SKU编码或外部条码查找信息</div>
+
+                <div class="note">
+                    <div class="note-title">💡 智能查询顺序</div>
+                    <p>系统会按照以下顺序进行查找，并返回最先匹配到的结果：</p>
+                    <ol style="margin-top: 0.5rem; padding-left: 1.5rem;">
+                        <li><strong>SKU编码</strong> - 精确匹配</li>
+                        <li><strong>外部条码</strong> - 精确匹配</li>
+                        <li><strong>商品编码</strong> - 精确匹配</li>
+                    </ol>
+                </div>
+                
+                <div class="params">
+                    <h4>路径参数:</h4>
+                    <table class="param-table">
+                        <tr><th>参数名</th><th>类型</th><th>必需</th><th>说明</th></tr>
+                        <tr><td>code</td><td>string</td><td class="required">是</td><td>商品编码、SKU编码或外部条码</td></tr>
+                    </table>
+                </div>
+                
+                <div class="params">
+                    <h4>📤 请求示例:</h4>
+                    <pre><code># 按SKU编码查询
+GET /api/sku-lookup/SHIRT-001-红-L
+
+# 按外部条码查询
+GET /api/sku-lookup/1234567890123
+
+# 按商品编码查询
+GET /api/sku-lookup/SHIRT-001</code></pre>
+                </div>
+
+                <div class="params">
+                    <h4>📥 成功响应 (找到SKU) (200 OK):</h4>
+                    <p>当输入为SKU编码或外部条码时，返回此结构</p>
+                    <pre><code>{
+  "success": true,
+  "data": {
+    "type": "sku",
+    "result": {
+      "sku_size": "L",
+      "sku_code": "SHIRT-001-红-L",
+      "external_codes": ["1234567890123"],
+      "color": "红",
+      "image_path": "/uploads/colors/shirt-001-red.jpg",
+      "product_code": "SHIRT-001",
+      "product_name": "经典衬衫",
+      "product": { ...完整商品对象... }
+    }
+  }
+}</code></pre>
+                </div>
+
+                <div class="params">
+                    <h4>📥 成功响应 (找到商品) (200 OK):</h4>
+                    <p>当输入为商品编码时，返回此结构</p>
+                    <pre><code>{
+  "success": true,
+  "data": {
+    "type": "product",
+    "result": {
+      "product_id": "64f9a1b2c3d4e5f6789abc01",
+      "product_code": "SHIRT-001",
+      "product_name": "经典衬衫",
+      "colors": [ ... ],
+       ...完整商品对象...
+    }
+  }
+}</code></pre>
+                </div>
+
+                <div class="params">
+                    <h4>响应字段说明:</h4>
+                    <table class="param-table">
+                        <tr><th>字段名</th><th>类型</th><th>说明</th></tr>
+                        <tr><td>type</td><td>string</td><td>查找结果的类型，'sku' 或 'product'</td></tr>
+                        <tr><td>result</td><td>object</td><td>查找到的具体对象，结构根据type变化</td></tr>
+                    </table>
+                </div>
+
+                <div class.params>
+                    <h4>📥 未找到响应 (404 Not Found):</h4>
+                    <pre><code>{
+  "success": false,
+  "error_message": "未找到匹配的商品、SKU或外部条码"
 }</code></pre>
                 </div>
             </div>

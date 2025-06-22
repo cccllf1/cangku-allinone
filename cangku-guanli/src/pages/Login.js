@@ -35,15 +35,17 @@ const Login = () => {
       const data = await login(values.user_name, values.password);
       console.log('Login response:', data);
       
-      if (data && data.token) {
+      if (data && data.token && data.user_id) {
         localStorage.setItem('token', data.token);
         localStorage.setItem('is_admin', data.is_admin);
-        localStorage.setItem('user_name', values.user_name);
+        localStorage.setItem('user_name', data.user_name);
+        localStorage.setItem('user_id', data.user_id);
         
         console.log('Stored user data:', {
           token: data.token,
           is_admin: data.is_admin,
-          user_name: values.user_name
+          user_name: data.user_name,
+          user_id: data.user_id
         });
         
         message.success('登录成功');

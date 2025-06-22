@@ -67,8 +67,9 @@ const MobileOutbound = () => {
   const handleScan = useCallback(async () => {
     const code = inputCode.trim();
     if (!code) return;
+    
+    setLoading(true);
     try {
-      setLoading(true);
       let productData = null;
       try {
         if (code.includes('-')) {
@@ -82,76 +83,117 @@ const MobileOutbound = () => {
         if (err.response && err.response.status === 404 && !code.includes('-')) {
           try {
             const extRes = await api.get(`/products/external-code/${code}`);
-            productData = extRes?.data?.data;
-          } catch (err2) {}
+            if (extRes?.data?.success && extRes.data.data) {
+              productData = extRes.data.data;
+            }
+          } catch (err2) {
+            // 外部条码也查找失败
+          }
         }
       }
-      if (!productData) { message.warning('未找到商品'); return; }
-      const product = productData;
-      // 只允许选SKU，不能直接用商品编码出库
-      let colorsArray = [];
-      try {
-        const invRes = await api.get('products', { params: { search: product.product_code, page_size: 1 } });
-        colorsArray = invRes.data.data?.products?.[0]?.colors || [];
-      } catch {}
-      if (colorsArray.length === 0 && product.skus) {
-        const map = {};
-        product.skus.forEach(sku => {
-          const col = sku.sku_color || '默认颜色';
-          if (!map[col]) map[col] = { color: col, image_path: sku.image_path || '', sizes: [] };
-          map[col].sizes.push({ sku_size: sku.sku_size, sku_code: sku.sku_code, sku_total_quantity: 0, locations: [] });
-        });
-        colorsArray = Object.values(map);
+
+      if (productData) {
+        await processScannedData(productData);
+      } else {
+        message.warning('未找到商品或SKU');
       }
-      // 只聚合有库存的SKU
-      colorsArray = colorsArray.filter(col => (col.sizes||[]).some(sz => (sz.locations||[]).some(l=>l.stock_quantity>0)));
-      if (colorsArray.length === 0) {
-        message.warning('该商品无可用库存SKU');
-        return;
-      }
-      const colorOptions = colorsArray.map(c => ({ value: c.color, label: c.color, image_path: c.image_path }));
-      const sizeOptions = {};
-      colorsArray.forEach(c => {
-        const validSizes = (c.sizes||[]).filter(sz => (sz.locations||[]).some(l=>l.stock_quantity>0));
-        sizeOptions[c.color] = validSizes.map(sz => ({
-          value: sz.sku_code,
-          label: `${sz.sku_size} (${sz.sku_code})`,
-          size: sz.sku_size,
-          locations: sz.locations || []
-        }));
-      });
-      // 默认选第一个有库存的SKU
-      let autoColor = '', autoSkuCode = '', autoSize = '', autoLoc = '';
-      const firstColor = colorsArray.find(c=> (c.sizes||[]).some(sz=> (sz.locations||[]).some(l=>l.stock_quantity>0)) ) || colorsArray[0];
-      if (firstColor) {
-        autoColor = firstColor.color;
-        const firstSize = (firstColor.sizes||[]).find(sz=> (sz.locations||[]).some(l=>l.stock_quantity>0)) || firstColor.sizes?.[0];
-        if (firstSize) {
-          autoSkuCode = firstSize.sku_code;
-          autoSize = firstSize.sku_size;
-          autoLoc = firstSize.locations?.[0]?.location_code || '';
-        }
-      }
-      setTableData(prev => [...prev, {
-        key: Date.now().toString(),
-        product_id: product.product_id,
-        product_code: product.product_code,
-        product_name: product.product_name,
-        sku_code: autoSkuCode,
-        sku_color: autoColor,
-        sku_size: autoSize,
-        stock_quantity: 1,
-        location_code: autoLoc,
-        image_path: firstColor?.image_path || product.image_path || '',
-        colorOptions,
-        sizeOptions,
-        colors: colorsArray
-      }]);
-      setInputCode('');
+
     } catch (err) {
-      message.error('查询失败');
-    } finally { setLoading(false); }
-  }, [inputCode]);
+      console.error("处理扫描失败", err);
+      message.error('查询或处理失败');
+    } finally { 
+      setLoading(false); 
+      setInputCode('');
+    }
+  }, [inputCode, tableData]);
+
+  // 新增: 处理扫描到的数据
+  const processScannedData = async (productData) => {
+    let targetSkuCode;
+    let productDetails;
+
+    // 1. 确定目标SKU和商品详情
+    if (productData.matched_sku) { // 外部条码或SKU编码直接定位
+      targetSkuCode = productData.matched_sku.sku_code;
+      // 当通过外部码查找时, productData里没有colors数组, 需要重新获取商品完整信息
+      const fullProductRes = await api.get(`/products/code/${productData.product_code}`);
+      productDetails = fullProductRes?.data?.data;
+
+    } else { // 商品编码
+      productDetails = productData;
+      // 如果是商品, 默认选择第一个有库存的SKU
+      for (const color of productDetails.colors || []) {
+        const firstSku = (color.sizes || []).find(s => s.sku_total_quantity > 0);
+        if (firstSku) {
+          targetSkuCode = firstSku.sku_code;
+          break;
+        }
+      }
+    }
+    
+    if (!productDetails || !targetSkuCode) {
+      message.warning('该商品无可用库存或未找到SKU');
+      return;
+    }
+
+    // 2. 检查SKU是否已在出库列表
+    const existingItem = tableData.find(item => item.sku_code === targetSkuCode);
+    if (existingItem) {
+      handleQuantityConfirm(existingItem.key, existingItem.stock_quantity + 1);
+      return;
+    }
+
+    // 3. 构建新的出库条目
+    let skuInfo, colorInfo, locationInfo;
+    for (const color of productDetails.colors) {
+        const foundSize = color.sizes.find(s => s.sku_code === targetSkuCode);
+        if (foundSize) {
+            skuInfo = foundSize;
+            colorInfo = color;
+            // 找到第一个有库存的库位
+            locationInfo = (skuInfo.locations || []).find(l => l.stock_quantity > 0);
+            break;
+        }
+    }
+
+    if (!skuInfo) {
+      message.error("无法在商品信息中定位到SKU，请检查数据");
+      return;
+    }
+    
+    // 4. 添加到表格
+    setTableData(prev => [...prev, {
+      key: Date.now().toString(),
+      product_id: productDetails.product_id,
+      product_code: productDetails.product_code,
+      display_code: skuInfo.sku_code,
+      product_name: productDetails.product_name,
+      sku_code: skuInfo.sku_code,
+      sku_total_quantity: skuInfo.sku_total_quantity,
+      sku_color: colorInfo.color,
+      sku_size: skuInfo.sku_size,
+      stock_quantity: 1,
+      location_code: locationInfo?.location_code || '',
+      image_path: colorInfo?.image_path || productDetails.image_path || '',
+      // 为下拉选择准备数据
+      colorOptions: productDetails.colors.map(c => ({ value: c.color, label: c.color })),
+      sizeOptions: productDetails.colors.reduce((acc, c) => {
+        acc[c.color] = (c.sizes || []).filter(s => s.sku_total_quantity > 0).map(s => ({
+          value: s.sku_code,
+          label: `${s.sku_size} (${s.sku_total_quantity}件)`,
+          locations: s.locations,
+        }));
+        return acc;
+      }, {}),
+      locationOptions: (skuInfo.locations || []).filter(l => l.stock_quantity > 0).map(l => ({
+        value: l.location_code,
+        label: `${l.location_code} (库存: ${l.stock_quantity})`,
+        qty: l.stock_quantity,
+      })),
+      colors: productDetails.colors, // 保存完整结构用于后续操作
+    }]);
+    message.success("添加成功");
+  };
 
   // 表格项处理
   const handleColorChange = (key, color) => {
@@ -161,16 +203,20 @@ const MobileOutbound = () => {
       const validSizes = (colorObj?.sizes||[]).filter(sz=> (sz.locations||[]).some(l=>l.stock_quantity>0));
       const sizesArr = validSizes.map(sz=>({
         value: sz.sku_code,
-        label: `${sz.sku_size} (${sz.sku_code})`,
+        label: `${sz.sku_size} (${sz.sku_total_quantity}件)`,
         size: sz.sku_size,
         locations: sz.locations||[]
       }));
       const newSizeOptions = { ...item.sizeOptions, [color]: sizesArr };
       return {
         ...item,
+        display_code: item.product_code,
+        product_name: item.product_name,
         sku_color: color,
+        image_path: colorObj?.image_path || item.image_path,
         sku_code: '',
         sku_size: '',
+        sku_total_quantity: null,
         sizeOptions: newSizeOptions,
         location_code: '',
         locationOptions: []
@@ -188,8 +234,10 @@ const MobileOutbound = () => {
       const locOpts = locOptsRaw.map(loc=>({ value: loc.location_code, label: `${loc.location_code} (${loc.stock_quantity}件)`, qty: loc.stock_quantity }));
       return {
         ...item,
+        display_code: skuCode,
         sku_code: skuCode,
         sku_size: selSizeObj?.sku_size || '',
+        sku_total_quantity: selSizeObj?.sku_total_quantity || 0,
         locationOptions: locOpts,
         location_code: locOpts[0]?.value || ''
       };

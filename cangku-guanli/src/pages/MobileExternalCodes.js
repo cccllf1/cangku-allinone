@@ -1,233 +1,408 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Button, Input, message, Select, List, Card, 
-  Modal, Form, Tag, Space, Empty, Spin
-} from 'antd';
-import { 
-  ArrowLeftOutlined, PlusOutlined, DeleteOutlined, 
-  SearchOutlined, SaveOutlined, LogoutOutlined, ScanOutlined
-} from '@ant-design/icons';
+import { Button, message, Input, Modal } from 'antd';
 import api from '../api/auth';
-import { useNavigate, useLocation } from 'react-router-dom';
-import BarcodeScannerComponent from '../components/BarcodeScannerComponent';
+import { useNavigate } from 'react-router-dom';
 import MobileNavBar from '../components/MobileNavBar';
-import '../mobile.css';
-
-const { Option } = Select;
 
 const MobileExternalCodes = () => {
-  const [skuList, setSkuList] = useState([]);
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [searchValue, setSearchValue] = useState('');
+  const [expandedProduct, setExpandedProduct] = useState(null);
+  const [expandedColor, setExpandedColor] = useState(null);
   const [selectedSku, setSelectedSku] = useState(null);
   const [externalCodes, setExternalCodes] = useState([]);
-  const [searchValue, setSearchValue] = useState('');
   const [inputCode, setInputCode] = useState('');
-  const [form] = Form.useForm();
+  const [showModal, setShowModal] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation();
-  
-  // 处理退出登录
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('is_admin');
-    message.success('退出成功');
-    navigate('/login');
+
+  const toArray = (value) => {
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === 'object') return Object.values(value);
+    return [];
   };
 
-  // 获取所有SKU
-  const fetchAllSkus = async () => {
-      setLoading(true);
+  const loadProducts = async () => {
+    setLoading(true);
     try {
-      const productsRes = await api.get('/products/');
-      const products = productsRes.data || [];
-      const allSkus = [];
-      products.forEach(product => {
-        if (product.skus && product.skus.length > 0) {
-          product.skus.forEach(sku => {
-            allSkus.push({
-              sku_code: sku.sku_code || sku.code,
-              product_code: product.product_code || product.code,
-              product_name: product.product_name || product.name,
-              sku_color: sku.sku_color || sku.color,
-              sku_size: sku.sku_size || sku.size,
-              image_path: sku.image_path || sku.image || product.image_path || product.image || '',
-            });
-          });
-        }
-      });
-      setSkuList(allSkus);
+      console.log('开始加载产品数据...');
+      const response = await api.get('/products');
+      console.log('API响应:', response.data);
+      
+      const data = response.data?.data || response.data || {};
+      const productList = data.products || [];
+      console.log('解析到的产品:', productList);
+      
+      setProducts(productList);
+      message.success(`加载了 ${productList.length} 个产品`);
     } catch (error) {
-      message.error('获取SKU列表失败');
-    } finally {
-      setLoading(false);
+      console.error('加载产品失败:', error);
+      message.error('加载产品失败');
     }
+    setLoading(false);
   };
 
-  // 查询SKU的外部条码
-  const fetchExternalCodes = async (sku_code) => {
-    if (!sku_code) return;
-      setLoading(true);
+  // 获取外部条码
+  const loadExternalCodes = async (skuCode) => {
     try {
-      const res = await api.get(`/sku/${sku_code}/external-codes`);
-      setExternalCodes(res.data || []);
+      console.log('获取外部条码:', skuCode);
+      const response = await api.get(`/sku/${skuCode}/external-codes`);
+      console.log('外部条码响应:', response.data);
+      const raw = response.data?.data ?? response.data ?? [];
+      setExternalCodes(Array.isArray(raw) ? raw : []);
     } catch (error) {
-      message.error('获取外部条码失败');
+      console.error('获取外部条码失败:', error);
       setExternalCodes([]);
-    } finally {
-      setLoading(false);
     }
   };
 
-  // 选择SKU
-  const handleSkuSelect = (sku_code) => {
-    const sku = skuList.find(s => s.sku_code === sku_code);
-    setSelectedSku(sku);
-    fetchExternalCodes(sku_code);
+  // 点击SKU
+  const handleSkuClick = (sku, product, colorObj) => {
+    console.log('点击SKU:', sku, product);
+    
+    const skuData = {
+      sku_code: sku.sku_code,
+      sku_color: colorObj?.color || sku.sku_color || '',
+      sku_size: sku.sku_size || '',
+      product_name: product.product_name || '',
+      product_code: product.product_code || '',
+    };
+    
+    setSelectedSku(skuData);
+    setShowModal(true);
+    loadExternalCodes(sku.sku_code);
+    message.success(`选中SKU: ${sku.sku_code}`);
+  };
+
+  // 关闭外部条码管理
+  const closeBarcodeManager = () => {
+    setShowModal(false);
+    setSelectedSku(null);
+    setExternalCodes([]);
+    setInputCode('');
   };
 
   // 添加外部条码
-  const handleAddExternalCode = async () => {
-    if (!selectedSku || !inputCode.trim()) {
-      message.warning('请选择SKU并输入外部条码');
+  const addExternalCode = async () => {
+    if (!inputCode.trim() || !selectedSku) return;
+
+    const operator_id = localStorage.getItem('user_id');
+    if (!operator_id) {
+      message.error('无法获取用户信息，请重新登录后再试');
       return;
     }
-    setLoading(true);
+    
     try {
-      await api.post(`/sku/${selectedSku.sku_code}/external-codes`, { external_code: inputCode.trim() });
-      message.success('添加外部条码成功');
+      await api.post(`/sku/${selectedSku.sku_code}/external-codes`, {
+        external_code: inputCode.trim(),
+        operator_id
+      });
+      message.success('添加成功');
       setInputCode('');
-      fetchExternalCodes(selectedSku.sku_code);
+      loadExternalCodes(selectedSku.sku_code);
     } catch (error) {
-        message.error('添加外部条码失败');
-    } finally {
-      setLoading(false);
+      console.error('添加失败:', error);
+      const errorMessage = error.response?.data?.error_message || '添加失败，条码可能已存在或网络错误';
+      message.error(errorMessage);
     }
   };
 
   // 删除外部条码
-  const handleDeleteExternalCode = async (code) => {
-    if (!selectedSku) return;
-    setLoading(true);
+  const deleteExternalCode = async (code) => {
+    const operator_id = localStorage.getItem('user_id');
+    if (!operator_id) {
+      message.error('无法获取用户信息，请重新登录后再试');
+      return;
+    }
+
     try {
-      await api.delete(`/sku/${selectedSku.sku_code}/external-codes/${code}`);
-      message.success('删除外部条码成功');
-      fetchExternalCodes(selectedSku.sku_code);
+      await api.delete(`/sku/${selectedSku.sku_code}/external-codes/${code}`, {
+        data: { operator_id }
+      });
+      message.success('删除成功');
+      loadExternalCodes(selectedSku.sku_code);
     } catch (error) {
-      message.error('删除外部条码失败');
+      console.error('删除失败:', error);
+      const errorMessage = error.response?.data?.error_message || '删除失败';
+      message.error(errorMessage);
+    }
+  };
+
+  // 切换商品展开/收起
+  const toggleProduct = (code) => {
+    const newExpandedProduct = expandedProduct === code ? null : code;
+    setExpandedProduct(newExpandedProduct);
+    // 切换商品时，总是收起颜色列表
+    setExpandedColor(null);
+  };
+
+  // 切换颜色展开/收起
+  const toggleColor = (key) => {
+    setExpandedColor(prev => (prev === key ? null : key));
+  };
+
+  const handleSearch = async (value) => {
+    const query = value.trim();
+    if (!query) return;
+
+    // 前端快速搜索SKU
+    for (const product of products) {
+      for (const color of toArray(product.colors)) {
+        for (const sku of toArray(color.sizes)) {
+          if (sku.sku_code === query) {
+            message.success(`在前端找到 SKU: ${query}`);
+            setExpandedProduct(product.product_code);
+            setExpandedColor(`${product.product_code}-${color.color}`);
+            handleSkuClick(sku, product, color);
+            return;
+          }
+        }
+      }
+    }
+    
+    // API 搜索
+    try {
+      setLoading(true);
+      const response = await api.get(`/products/sku-lookup/${query}`);
+      const data = response.data.data;
+
+      if (data && data.type === 'sku') {
+        const skuInfo = data.result;
+        message.success(`通过API找到 SKU: ${skuInfo.sku_code}`);
+        await loadProducts();
+        setTimeout(() => {
+          setExpandedProduct(skuInfo.product_code);
+          setExpandedColor(`${skuInfo.product_code}-${skuInfo.color}`);
+          const product = skuInfo.product;
+          const colorObj = product.colors.find(c => c.color === skuInfo.color);
+          handleSkuClick(skuInfo, product, colorObj);
+        }, 100);
+      } else if (data && data.type === 'product') {
+        const productInfo = data.result;
+        message.success(`通过API找到商品: ${productInfo.product_code}`);
+        await loadProducts();
+        setTimeout(() => {
+          setExpandedProduct(productInfo.product_code);
+          setExpandedColor(null);
+        }, 100);
+      } else {
+        message.error('未找到匹配的商品、SKU或外部条码');
+      }
+    } catch (error) {
+      const errorMessage = error.response?.data?.error_message || '搜索失败，请检查条码是否正确';
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  // 搜索SKU
-  const filteredSkus = skuList.filter(sku => {
-    const v = searchValue.trim().toLowerCase();
-    return (
-      sku.sku_code.toLowerCase().includes(v) ||
-      (sku.product_code && sku.product_code.toLowerCase().includes(v)) ||
-      (sku.product_name && sku.product_name.toLowerCase().includes(v)) ||
-      (sku.sku_color && sku.sku_color.toLowerCase().includes(v)) ||
-      (sku.sku_size && sku.sku_size.toLowerCase().includes(v))
-    );
-  });
-
-  // 扫码
-  const handleScan = () => {
-    if (!inputCode.trim()) {
-      message.warning('请输入外部条码');
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login');
       return;
     }
-    handleAddExternalCode();
-  };
-
-  // 初始化加载
-  useEffect(() => {
-    fetchAllSkus();
-    
-    // 检查URL参数是否有产品ID
-    const params = new URLSearchParams(location.search);
-    const productId = params.get('product_id');
-    if (productId) {
-      setSelectedSku(productId);
-      fetchExternalCodes(productId);
-    }
-  }, [location.search]);
+    loadProducts();
+  }, [navigate]);
 
   return (
-    <div className="page-container" style={{ padding: 16 }}>
+    <div style={{ padding: 16 }}>
       <MobileNavBar currentPage="externalCodes" />
-
-      {/* 搜索区域 */}
+      
+      {/* 搜索栏 */}
+      <Input.Search
+        placeholder="搜索商品/SKU/颜色/尺码"
+        value={searchValue}
+        onChange={(e) => setSearchValue(e.target.value)}
+        onSearch={handleSearch}
+        allowClear
+        style={{ marginBottom: 12 }}
+      />
+      
       <div style={{ marginBottom: 16 }}>
-        <Input
-          placeholder="搜索SKU（商品名/编码/SKU码/颜色/尺码）"
-          value={searchValue}
-          onChange={e => setSearchValue(e.target.value)}
-          allowClear
-          style={{ marginBottom: 8 }}
-        />
-        <List
-          bordered
-          dataSource={filteredSkus}
-          loading={loading}
-          style={{ maxHeight: 200, overflow: 'auto', marginBottom: 8 }}
-          renderItem={sku => (
-            <List.Item
-              style={{ cursor: 'pointer', background: selectedSku && selectedSku.sku_code === sku.sku_code ? '#e6f7ff' : undefined }}
-              onClick={() => handleSkuSelect(sku.sku_code)}
-            >
-            <Space>
-                <span><b>{sku.product_name}</b> ({sku.product_code})</span>
-                <Tag color="blue">{sku.sku_color}</Tag>
-                <Tag color="green">{sku.sku_size}</Tag>
-                <Tag color="purple">{sku.sku_code}</Tag>
-            </Space>
-            </List.Item>
-          )}
-        />
+        <Button type="primary" onClick={loadProducts} loading={loading}>
+          刷新数据
+        </Button>
+        <span style={{ marginLeft: 16, color: '#666' }}>
+          共 {products.length} 个产品
+        </span>
       </div>
+      
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 50 }}>加载中...</div>
+      ) : (
+        <div>
+          {products.length > 0 ? (
+            products.filter(p=>{
+              const v = searchValue.trim().toLowerCase();
+              if(!v) return true;
+              // quick text match on product
+              return (
+                (p.product_name||'').toLowerCase().includes(v) ||
+                (p.product_code||'').toLowerCase().includes(v)
+              );
+            }).map(product => (
+              <div key={product.product_id || product.product_code} style={{ 
+                border: '1px solid #ddd', 
+                padding: 16, 
+                marginBottom: 16,
+                borderRadius: 8 
+              }}>
+                <h3 style={{cursor:'pointer'}} onClick={()=>toggleProduct(product.product_code)}>
+                  {expandedProduct === product.product_code ? '▼' : '▶'} {product.product_name || '未知商品'} ({product.product_code || '无编码'})
+                </h3>
 
-      {/* 选中的SKU信息 */}
-      {selectedSku && (
-        <Card title={<span>SKU信息</span>} style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-            {selectedSku.image_path && <img src={selectedSku.image_path} alt="sku" style={{ width: 60, height: 60, objectFit: 'contain', marginRight: 16 }} />}
-            <div>
-              <div><b>{selectedSku.product_name}</b> ({selectedSku.product_code})</div>
-              <div>SKU编码: <Tag color="purple">{selectedSku.sku_code}</Tag></div>
-              <div>颜色: <Tag color="blue">{selectedSku.sku_color}</Tag> 尺码: <Tag color="green">{selectedSku.sku_size}</Tag></div>
+                {expandedProduct === product.product_code && (
+                  toArray(product.colors).length > 0 ? (
+                    toArray(product.colors).map(color => (
+                      <div key={color.color || Math.random()} style={{ 
+                        border: '1px solid #eee', 
+                        padding: 8, 
+                        marginBottom: 8,
+                        borderRadius: 4
+                      }}>
+                        <div style={{ marginBottom: 8, fontWeight: 'bold', color: 'blue', cursor:'pointer' }}
+                          onClick={()=>toggleColor(`${product.product_code}-${color.color}`)}>
+                          {expandedColor === `${product.product_code}-${color.color}` ? '▼' : '▶'} {color.color || '未知颜色'} ({toArray(color.sizes).length} 个SKU)
+                        </div>
+                        
+                        { expandedColor === `${product.product_code}-${color.color}` && toArray(color.sizes).length > 0 && (
+                          <div>
+                            {toArray(color.sizes).map(size => (
+                              <div
+                                key={size.sku_code || Math.random()}
+                                style={{
+                                  padding: 8,
+                                  border: '1px solid #ccc',
+                                  borderRadius: 4,
+                                  marginBottom: 4,
+                                  cursor: 'pointer',
+                                  backgroundColor: '#f9f9f9'
+                                }}
+                                onClick={() => handleSkuClick(size, product, color)}
+                              >
+                                <span style={{ color: 'green', fontWeight: 'bold' }}>
+                                  {size.sku_size || '未知尺码'}
+                                </span>
+                                <span style={{ marginLeft: 8 }}>{size.sku_code || '无SKU码'}</span>
+                                <span style={{ float: 'right', color: '#666' }}>
+                                  库存: {size.sku_total_quantity || 0}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ color: '#999', padding: 8 }}>该产品暂无SKU数据</div>
+                  )
+                )}
+              </div>
+            ))
+          ) : (
+            <div style={{ textAlign: 'center', padding: 50, color: '#999' }}>
+              暂无产品数据
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 外部条码管理弹窗 */}
+      <Modal
+        title={`外部条码管理: ${selectedSku?.sku_code || ''}`}
+        open={showModal}
+        onCancel={closeBarcodeManager}
+        footer={null}
+        width="90%"
+      >
+        {selectedSku && (
+        <div>
+          {/* SKU信息 */}
+          <div style={{ 
+            marginBottom: 16, 
+            padding: 12, 
+            backgroundColor: 'white', 
+            borderRadius: 4,
+            border: '1px solid #e8e8e8'
+          }}>
+            <p style={{ margin: '4px 0' }}><strong>商品:</strong> {selectedSku.product_name}</p>
+            <p style={{ margin: '4px 0' }}><strong>颜色:</strong> {selectedSku.sku_color}</p>
+            <p style={{ margin: '4px 0' }}><strong>尺码:</strong> {selectedSku.sku_size}</p>
+          </div>
+
+          {/* 添加条码区域 */}
+          <div style={{ 
+            marginBottom: 16, 
+            padding: 12, 
+            backgroundColor: 'white', 
+            borderRadius: 4,
+            border: '1px solid #e8e8e8'
+          }}>
+            <h4 style={{ marginTop: 0, marginBottom: 8 }}>添加外部条码</h4>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Input
+                placeholder="输入外部条码"
+                value={inputCode}
+                onChange={(e) => setInputCode(e.target.value)}
+                onPressEnter={addExternalCode}
+                style={{ flex: 1 }}
+              />
+              <Button type="primary" onClick={addExternalCode}>
+                添加
+              </Button>
             </div>
           </div>
-          <div style={{ marginBottom: 8 }}>
-            <Input.TextArea
-              placeholder="扫描外部条码或手动输入"
-              value={inputCode}
-              onChange={(e) => setInputCode(e.target.value)}
-              style={{ marginBottom: 8 }}
-              onPressEnter={handleScan}
-            />
-            <Button type="primary" onClick={handleScan}>
-              确认
-            </Button>
-          </div>
-        </Card>
-      )}
 
-      {/* 已绑定外部条码 */}
-      {selectedSku && (
-        <Card title={<span>已绑定外部条码</span>}>
-            <List
-              dataSource={externalCodes}
-            loading={loading}
-            locale={{ emptyText: <Empty description="暂无外部条码" /> }}
-            renderItem={code => (
-              <List.Item actions={[<Button icon={<DeleteOutlined />} danger size="small" onClick={() => handleDeleteExternalCode(code.external_code || code)} />]}>
-                <span style={{ fontSize: 16 }}>{code.external_code || code}</span>
-                </List.Item>
-              )}
-            />
-        </Card>
-      )}
+          {/* 已绑定条码列表 */}
+          <div style={{ 
+            padding: 12, 
+            backgroundColor: 'white', 
+            borderRadius: 4,
+            border: '1px solid #e8e8e8'
+          }}>
+            <h4 style={{ marginTop: 0, marginBottom: 8 }}>
+              已绑定条码 ({externalCodes.length})
+            </h4>
+            
+            {externalCodes.length === 0 ? (
+              <p style={{ color: '#999', textAlign: 'center', padding: 16 }}>
+                暂无外部条码
+              </p>
+            ) : (
+              <div>
+                {externalCodes.map((code, index) => {
+                  const codeValue = code.external_code || code;
+                  return (
+                    <div key={index} style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      padding: 8,
+                      border: '1px solid #d9d9d9',
+                      borderRadius: 4,
+                      marginBottom: 4,
+                      backgroundColor: '#fafafa'
+                    }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: '14px' }}>
+                        {codeValue}
+                      </span>
+                      <Button 
+                        size="small" 
+                        danger 
+                        onClick={() => deleteExternalCode(codeValue)}
+                      >
+                        删除
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+        )}
+      </Modal>
     </div>
   );
 };

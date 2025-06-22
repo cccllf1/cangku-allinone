@@ -239,116 +239,26 @@ const MobileInbound = () => {
           // 3) 商品码404时查外部条码
           try {
             const extRes = await api.get(`/api/products/external-code/${rawCode}`);
-            productData = extRes?.data?.data;
-          } catch (err2) {
-            // 外部条码也404
+            // 注意：新的外部条码接口返回的数据结构变了
+            if (extRes?.data?.success && extRes.data.data) {
+                // 后端返回的数据结构已经包含了 product_code, product_name, 和 matched_sku
+                // processScannedData 函数可以处理这种结构
+                productData = extRes.data.data;
+            }
+          } catch (err) {
+             console.error('外部条码查询失败:', err);
+             // 外部条码也找不到时，就不设置 productData，让后续逻辑处理
           }
         }
       }
 
-      if (!productData) {
-        message.info('未找到商品信息，可继续添加');
-        return;
+      // 如果成功获取了 productData，则进行处理
+      if(productData) {
+        processScannedData(productData, rawCode);
+      } else {
+        message.error('未找到商品或SKU信息');
       }
 
-      const product = productData;  // 统一变量名
-      let colorsArray = Array.isArray(product.colors) ? product.colors : [];
-      if (colorsArray.length === 0 && Array.isArray(product.skus)) {
-        // 根据 skus 组装 colors / sizes 结构（仍使用后台数据）
-        const map = {};
-        product.skus.forEach(sku => {
-          const col = sku.sku_color || '默认颜色';
-          if (!map[col]) map[col] = { color: col, image_path: sku.image_path || '', sizes: [] };
-          map[col].sizes.push({
-            sku_size: sku.sku_size,
-            sku_code: sku.sku_code,
-            sku_total_quantity: sku.stock_quantity || 0,
-            locations: []
-          });
-        });
-        colorsArray = Object.values(map);
-      }
-      console.log('Product data:', product);
-
-      // 处理颜色选项
-      const colorOptions = colorsArray.map(color => ({
-        label: color.color,
-        value: color.color,
-        image_path: color.image_path || ''
-      }));
-      // 处理尺码选项
-      const sizeOptions = {};
-      colorsArray.forEach(color => {
-        const sizesArray = Array.isArray(color.sizes)
-          ? color.sizes
-          : Object.values(color.sizes || {});
-        if (sizesArray.length > 0) {
-          sizeOptions[color.color] = sizesArray.map(size => ({
-            label: `${size.sku_size} (${size.sku_code})`,
-            value: size.sku_code,
-            size: size.sku_size,
-            sku_total_quantity: size.sku_total_quantity,
-            locations: size.locations || []
-          }));
-        }
-      });
-
-      // === 自动选中颜色和尺码逻辑 ===
-      let autoColor = null;
-      let autoSkuCode = null;
-      let autoSize = null;
-      let autoLocation = selectedLocation || "无货位";
-      
-      // 1. 如果API返回了matched_sku（SKU编码查询 或 SKU级外部条码查询）
-      if (product.matched_sku) {
-        autoColor = product.matched_sku.sku_color;
-        autoSkuCode = product.matched_sku.sku_code;
-        autoSize = product.matched_sku.sku_size;
-        // 查找库位信息
-        const locArr = sizeOptions[autoColor]?.find(sz => sz.value === autoSkuCode)?.locations;
-        if (locArr && locArr.length === 1) {
-          autoLocation = locArr[0].location_code;
-        }
-      }
-      // 2. 如果原始扫描是完整SKU格式（包含'-'）
-      else if (rawCode.includes('-')) {
-        const parts = rawCode.split('-');
-        if (parts.length >= 3) {
-          autoColor = parts[1];
-          autoSkuCode = rawCode;
-          autoSize = parts.slice(2).join('-');
-          // 如果在 sizeOptions 中找得到该 SKU 的库存地点，则默认第一个库位
-          const locArr = sizeOptions[autoColor]?.find(sz => sz.value === autoSkuCode)?.locations;
-          if (locArr && locArr.length === 1) {
-            autoLocation = locArr[0].location_code;
-          }
-        }
-      }
-
-      // === 构建待插入的商品条目 ===
-      const itemObj = {
-        key: `${rawCode}-${Date.now()}`,
-        product_code: product.product_code,
-        display_code: autoSkuCode || rawCode,
-        product_name: product.product_name || '未知商品',
-        unit: product.unit || '件',
-        stock_quantity: 1,
-        location_code: autoLocation,
-        product_id: product.product_id,
-        location_id: null,
-        image_path: product.image_path || '',
-        sku_code: autoSkuCode,
-        sku_color: autoColor,
-        sku_size: autoSize,
-        status: 'found',
-        colorOptions,
-        sizeOptions,
-        colors: colorsArray
-      };
-
-      setTableData(prev => [...prev, itemObj]);
-      setInputCode('');
-      message.success('已找到商品信息');
     } catch (error) {
       console.error('查询商品信息失败:', error);
       message.error('查询商品信息失败: ' + (error.response?.data?.message || error.message));
@@ -356,6 +266,95 @@ const MobileInbound = () => {
       setLoading(false);
     }
   }, [inputCode, selectedLocation]);
+
+  // 新增: 处理扫描到的数据并添加到待入库列表
+  const processScannedData = async (productData, rawCode) => {
+    let productDetails;
+    let targetSkuCode;
+
+    // 1. 如果是通过外部条码找到的，数据结构是精简的，需要重新获取商品完整信息
+    if (productData.matched_sku) {
+      targetSkuCode = productData.matched_sku.sku_code;
+      try {
+        const fullProductRes = await api.get(`/api/products/code/${productData.product_code}`);
+        productDetails = fullProductRes?.data?.data;
+        if (!productDetails) throw new Error("Product details not found");
+      } catch (error) {
+        message.error(`获取商品 ${productData.product_code} 详细信息失败`);
+        return;
+      }
+    } else {
+      // 如果是直接通过商品码或SKU码找到的，productData本身就是完整信息
+      productDetails = productData;
+      targetSkuCode = rawCode.includes('-') ? rawCode : null;
+    }
+
+    // 2. 如果扫描的是商品而非SKU，需要让用户选择
+    if (!targetSkuCode && productDetails.colors && productDetails.colors.length > 0) {
+      // 自动选择第一个颜色和第一个SKU作为默认值
+      const firstColor = productDetails.colors[0];
+      const firstSku = firstColor.sizes[0];
+      targetSkuCode = firstSku?.sku_code;
+    }
+    
+    if (!productDetails || !targetSkuCode) {
+        message.warning('无法确定唯一的SKU，请检查商品信息');
+        return;
+    }
+
+    // 3. 检查同一个SKU是否已在列表中
+    const existingItemIndex = tableData.findIndex(item => item.sku_code === targetSkuCode);
+    if (existingItemIndex > -1) {
+      const updatedTableData = [...tableData];
+      updatedTableData[existingItemIndex].stock_quantity += 1;
+      setTableData(updatedTableData);
+      message.success(`SKU ${targetSkuCode} 数量已加1`);
+      setInputCode('');
+      return;
+    }
+    
+    // 4. 定位SKU的具体信息以添加到列表
+    let skuInfo, colorInfo;
+    for (const color of productDetails.colors) {
+        const foundSize = color.sizes.find(s => s.sku_code === targetSkuCode);
+        if (foundSize) {
+            skuInfo = foundSize;
+            colorInfo = color;
+            break;
+        }
+    }
+    
+    if (!skuInfo) {
+      message.error("在商品数据中未找到对应的SKU信息");
+      return;
+    }
+
+    // 5. 构建新的入库条目
+    const newItem = {
+      key: `${targetSkuCode}-${Date.now()}`,
+      product_id: productDetails._id,
+      product_code: productDetails.product_code,
+      product_name: productDetails.product_name,
+      display_code: targetSkuCode,
+      sku_code: targetSkuCode,
+      sku_color: colorInfo.color,
+      sku_size: skuInfo.sku_size,
+      stock_quantity: 1,
+      location_code: selectedLocation || "无货位",
+      image_path: colorInfo.image_path || productDetails.image_path,
+      // 准备下拉框数据
+      colors: productDetails.colors,
+      colorOptions: productDetails.colors.map(c => ({ value: c.color, label: c.color })),
+      sizeOptions: productDetails.colors.reduce((acc, c) => {
+        acc[c.color] = c.sizes.map(s => ({ value: s.sku_code, label: `${s.sku_size} (${s.sku_code})` }));
+        return acc;
+      }, {}),
+    };
+
+    setTableData(prev => [newItem, ...prev]);
+    setInputCode('');
+    message.success(`已添加 ${targetSkuCode}`);
+  };
 
   // 处理颜色变更
   const handleColorChange = (key, color) => {

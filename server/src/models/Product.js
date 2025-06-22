@@ -22,6 +22,7 @@ const skuSchema = new mongoose.Schema({
 const colorSizeSchema = new mongoose.Schema({
   sku_size: { type: String, required: true },
   sku_code: { type: String, required: true },
+  external_codes: [ { external_code: { type: String } } ],
   sku_total_quantity: { type: Number, default: 0 },
   locations: [{ type: mongoose.Schema.Types.Mixed }]
 }, { _id: false });
