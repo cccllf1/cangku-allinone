@@ -3,8 +3,7 @@ import { Button, Input, message, List, Form, Select, Modal, Typography } from 'a
 import { showResultModal } from '../components/ResultModal';
 const { Text } = Typography;
 import { SyncOutlined } from '@ant-design/icons';
-import * as api from '../api/request';
-import { getCurrentUser } from '../api/auth';
+import api, { getCurrentUser } from '../api/auth';
 import { useNavigate } from 'react-router-dom';
 import MobileNavBar from '../components/MobileNavBar';
 import theme, { getStyle, messageConfig } from '../styles/theme';
@@ -63,7 +62,7 @@ const MobileInbound = () => {
 
       // 缓存不存在或强制刷新时，从服务器获取
       setLoadingLocations(true);
-              const response = await api.get('/api/inventory/location');
+              const response = await api.get('/inventory/location');
       if (response?.data?.success) {
         const locations = response.data.data || [];
         // 创建库位选项并插入"无货位"
@@ -222,33 +221,22 @@ const MobileInbound = () => {
     try {
       setLoading(true);
       
-      // 然后查询商品信息
+      // 🎯 使用统一的智能API（支持产品代码、SKU代码、外部条码）
       let productData = null;
       try {
-        // 1) 若含 '-' 当作 SKU 直接查 /products/code
-        if (rawCode.includes('-')) {
-          const skuRes = await api.get(`/api/products/code/${rawCode}`);
-          productData = skuRes?.data?.data;
+        console.log('🔍 入库页面智能查询:', rawCode);
+        const response = await api.get(`/products/code/${rawCode}`);
+        if (response?.data?.success && response.data.data) {
+          productData = response.data.data;
+          const queryType = productData.query_type || 'unknown';
+          console.log('✅ 查询成功:', rawCode, '-> 类型:', queryType);
         } else {
-          // 2) 先查商品码
-          const prodRes = await api.get(`/api/products/code/${rawCode}`);
-          productData = prodRes?.data?.data;
+          console.log('❌ 查询失败:', rawCode, '-> 无数据');
         }
       } catch (err) {
-        if (err.response && err.response.status === 404 && !rawCode.includes('-')) {
-          // 3) 商品码404时查外部条码
-          try {
-            const extRes = await api.get(`/api/products/external-code/${rawCode}`);
-            // 注意：新的外部条码接口返回的数据结构变了
-            if (extRes?.data?.success && extRes.data.data) {
-                // 后端返回的数据结构已经包含了 product_code, product_name, 和 matched_sku
-                // processScannedData 函数可以处理这种结构
-                productData = extRes.data.data;
-            }
-          } catch (err) {
-             console.error('外部条码查询失败:', err);
-             // 外部条码也找不到时，就不设置 productData，让后续逻辑处理
-          }
+        console.error('❌ 网络异常:', rawCode, '->', err.message);
+        if (err.response?.status === 404) {
+          console.log('📝 商品未找到:', rawCode);
         }
       }
 
@@ -276,7 +264,7 @@ const MobileInbound = () => {
     if (productData.matched_sku) {
       targetSkuCode = productData.matched_sku.sku_code;
       try {
-        const fullProductRes = await api.get(`/api/products/code/${productData.product_code}`);
+        const fullProductRes = await api.get(`/products/code/${productData.product_code}`);
         productDetails = fullProductRes?.data?.data;
         if (!productDetails) throw new Error("Product details not found");
       } catch (error) {
