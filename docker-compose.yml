@@ -11,21 +11,21 @@ services:
       - MONGO_INITDB_ROOT_USERNAME=admin_user
       - MONGO_INITDB_ROOT_PASSWORD=your_strong_password
     volumes:
-      - ./mongo-data:/data/db
+      - /volume1/docker/cccllf1/cangku-allinone/mongo-data:/data/db
 
   backend:
-    build: ./server
+    build: /volume1/docker/cccllf1/cangku-allinone/server
     container_name: cangku-backend
     restart: always
     ports:
       - "8611:8611"
     env_file:
-      - ./server/.env
+      - /volume1/docker/cccllf1/cangku-allinone/server/.env
     depends_on:
       - mongo
     volumes:
-      - ./server:/app
-      - ./server/uploads:/app/uploads
+      - /volume1/docker/cccllf1/cangku-allinone/server:/app
+      - /volume1/docker/cccllf1/cangku-allinone/server/uploads:/app/uploads
     environment:
       - MONGODB_URI=mongodb://admin_user:your_strong_password@mongo:8612/cangku-guanli?authSource=admin
       - PORT=8611
@@ -36,7 +36,7 @@ services:
       npm start"
 
   frontend:
-    build: ./cangku-guanli
+    build: /volume1/docker/cccllf1/cangku-allinone/cangku-guanli
     container_name: cangku-frontend
     restart: always
     ports:
@@ -44,8 +44,8 @@ services:
     depends_on:
       - backend
     volumes:
-      - ./cangku-guanli/build:/usr/share/nginx/html
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - /volume1/docker/cccllf1/cangku-allinone/cangku-guanli/build:/usr/share/nginx/html
+      - /volume1/docker/cccllf1/cangku-allinone/nginx.conf:/etc/nginx/conf.d/default.conf
       
   frontend-builder:
     image: node:18
