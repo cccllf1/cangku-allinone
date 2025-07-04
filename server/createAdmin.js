@@ -1,8 +1,9 @@
 const mongoose = require('mongoose');
 const User = require('./src/models/User');
 
-// 修改为群晖的内网IP
-mongoose.connect('mongodb://admin_user:your_strong_password@192.168.11.252:8612/cangku-guanli?authSource=admin', {
+// 使用环境变量连接数据库
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://admin_user:your_strong_password@mongo:8612/cangku-guanli?authSource=admin';
+mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 }).then(async () => {
